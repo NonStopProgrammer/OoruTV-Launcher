@@ -11,6 +11,10 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 | ![Top shelf](docs/screenshots/hero.jpg) | ![Weather panel](docs/screenshots/weather.jpg) | ![Control Center](docs/screenshots/control.jpg) |
 | **All Apps** | **Settings** | **Today** |
 | ![All Apps](docs/screenshots/apps.jpg) | ![Settings](docs/screenshots/settings.jpg) | ![Today](docs/screenshots/today.jpg) |
+| **A folder** | **Hold OK: the menu** | **Recent apps (Home twice)** |
+| ![Folder](docs/screenshots/folder.jpg) | ![Hold menu](docs/screenshots/menu.jpg) | ![Recent apps](docs/screenshots/recents.jpg) |
+| **StandBy screensaver** | **Fonts** | |
+| ![StandBy](docs/screenshots/standby.jpg) | ![Fonts](docs/screenshots/fonts.jpg) | |
 
 *Screenshots from a Mi TV 4i (Android 9) in Chennai.*
 
@@ -49,20 +53,30 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 - **Status pill** (top right): your avatar, the clock and round glass buttons (Today, Live TV, Inputs, Settings,
   Control Center). The focused one turns white with dark ink and shows its name.
 - **Control Center** (the remote's **Menu** key, or the last round button): StandBy, Wi-Fi and Bluetooth status,
-  Inputs, Settings, Dark Mode, Glass Style, Live TV, All Apps and the TV's own settings, under the time,
+  Inputs, Settings, Dark Mode, Glass Style, Live TV, All Apps, Recent Apps and the TV's own settings, under the time,
   the date and your profile.
+- **Recent apps switcher** (press **Home** twice, or Control Center → Recent Apps): the apps you used lately as big
+  cards, newest first, with the TV's free memory. **OK** opens one, **↑** quits it (its card flies away).
 - **Profile**: a name and one of ten emoji avatars, shown in the status pill and Control Center.
 - **Bottom drawer** (**↓** from the apps): HDMI inputs and Live TV, shortcuts, today's weather with air quality, and
   market quotes (NIFTY 50, SENSEX, BANK NIFTY, or crypto) with the day's change.
-- **All Apps**: every app in a Liquid Glass box under a light name pill, as glossy tiles with a diagonal glass rim;
-  the focused one rises, catches a streak of light and shows its name.
+- **All Apps**: a full-screen Liquid Glass window with every app, six across, as glossy tiles with a diagonal glass
+  rim; the focused one rises, catches a streak of light and shows its name.
+- **Folders**: hold **OK** on an app in All Apps for its menu: add it to (or take it off) the shelf, put it in a
+  **New Folder**, or move it to one you made. Folders sit first in All Apps, showing their first six apps; **OK**
+  opens one in its own glass panel with its name above. Hold **OK** on a folder to rename or remove it (its apps go
+  back to All Apps), or on an app inside one to move it out.
+- **Fonts**: SF Pro, SF Rounded, Inter, Google Sans (the Google I/O font), Outfit or the TV's own
+  (Home Settings → Font; the list shows each name in its own font). See [Apple's SF fonts](#apples-sf-fonts).
 - **Settings** in the tvOS split view: a Liquid Glass window over today's photo, your profile at the top of the
   sidebar, each section with its coloured icon, and content rows on their own glass plates with the white focus.
 - **Today** page (date, Panchang, Thirukkural, cricket, news) over today's photo, with Liquid Glass cards.
 - **Dark Mode**: on, off, or automatically from sunset to sunrise at your location.
 
 **Screensaver**: Bing's photo of the day (or the picks' photos) with a slow Ken Burns zoom, a big Liquid Glass clock,
-the date, weather and quotes, and a Thirukkural couplet.
+the date, weather and quotes, and a Thirukkural couplet. Or **StandBy** (Home Settings → Screensaver style), like an
+iPhone on its side: an analog clock with a sweeping second hand and this month's calendar on black, turning a dim red
+from 10 pm to 6 am, and drifting a few pixels so nothing burns in.
 
 **Made for India, works anywhere**: Tamil, Hindi and 20+ other languages, Tamil titles first in the picks, Indian
 streaming apps on the dock (JioHotstar, Sun NXT, SonyLIV, Prime Video, Netflix, YouTube), rupee prices.
@@ -144,12 +158,15 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 |---|---|---|
 | Apps | **← →** | Move along the dock |
 | Apps | **OK** / hold **OK** | Open the app / lift it to move it (← →, then OK) |
+| All Apps | hold **OK** | The menu: shelf, New Folder, Move to a folder (on a folder: Rename, Remove) |
+| A folder | **OK** / hold **OK** / **Back** | Open the app / its menu (Move out…) / close the folder |
+| Anywhere | **Home** twice | Recent apps: **← →** choose, **OK** open, **↑** quit the app |
 | Apps | **↑** | Focus the top shelf |
 | Apps | **↓** | Open the drawer: inputs, shortcuts, weather, quotes |
 | Top shelf | **← →** / **OK** | Browse the picks / open the pick in its app |
 | Top shelf | **↑** | The weather pill and the status pill |
 | Anywhere | **Menu** | Control Center |
-| From a computer | `adb shell am start -n io.freemytv/.HomeActivity --es show apps` | Opens a screen directly: `apps`, `control`, `weather` or `today` (handy for screenshots) |
+| From a computer | `adb shell am start -n io.freemytv/.HomeActivity --es show apps` | Opens a screen directly: `apps`, `control`, `weather`, `today`, `recents`, `folder` or `menu` (handy for screenshots) |
 | Weather pill | **OK** | The weather panel |
 | Control Center | arrows / **OK** | Move / use a control; the avatar at the top opens Profile |
 | Anywhere | **Back** | Close what's open, then back to the apps |
@@ -159,9 +176,24 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 
 ## Settings
 
-Most of it lives on the TV: **OoruTV → Home Settings** (language, temperature unit, theme, sounds, weather, city,
-markets, screensaver photos), **Shelf**, **Top Buttons** and **Remote Buttons**, plus **Control Center** for
+Most of it lives on the TV: **OoruTV → Home Settings** (language, temperature unit, theme, font, sounds, weather, city,
+markets, screensaver style), **Shelf**, **Top Buttons** and **Remote Buttons**, plus **Control Center** for
 Dark Mode, Glass Style and Profile.
+
+### Apple's SF fonts
+
+SF Pro and SF Rounded are Apple's fonts, and their licence doesn't allow building them into an app, so OoruTV
+doesn't ship them. It uses the files you put on your own TV:
+
+1. Download **SF Pro** from [developer.apple.com/fonts](https://developer.apple.com/fonts/) (it includes SF Pro
+   Rounded) and open it (on Windows, 7-Zip opens the `.dmg`, then the `.pkg` inside, then `Payload`).
+2. Copy the `.otf` / `.ttf` files (for example `SF-Pro-Display-*.otf`, `SF-Pro-Text-*.otf`,
+   `SF-Pro-Rounded-*.otf`, or the single `SF-Pro.ttf`) into a folder named `fonts` next to `scripts/install.ps1`.
+3. Run the installer again. It copies them to `/sdcard/Android/data/io.freemytv/files/fonts` on the TV (the app's
+   own folder; nothing else can see them). Then pick **SF Pro** or **SF Rounded** in Home Settings → Font.
+
+Until the files are there, SF Pro shows as Inter and SF Rounded as Google Sans with round ends, and the font list says
+*Add Apple's files*. The `fonts` folder is in `.gitignore`, so the files never end up in the repository.
 
 What gets built into the APK comes from `config.properties` (never commit it):
 
@@ -173,7 +205,7 @@ What gets built into the APK comes from `config.properties` (never commit it):
 | `language` | `auto` or a language in `app/assets/i18n` | `en`, `ta` |
 | `first_language` | Titles in this language lead the picks | `ta` |
 | `app_tiles` | Dock icons: `stock` (each app's own art) or brand tiles | `stock` |
-| `screensaver` | `scenery` (Bing photo of the day), `picks` or `both` | `scenery` |
+| `screensaver` | `scenery` (Bing photo of the day), `picks`, `both` or `standby` (clock and calendar) | `scenery` |
 | `youtube_channels` | YouTube channels whose newest videos join the top shelf (`UC…` ids or `@handles`), or `off` | `@SunTV,@VijayTelevision` |
 | `show_markets`, `show_crypto` | Market quotes / crypto prices | `true`, `false` |
 | `currency`, `temperature` | Price currency, `C`/`F`/`auto` | `INR`, `C` |
@@ -231,7 +263,13 @@ Requirements: minSdk 26 (Android 8), targetSdk 33, compiled against android-34.
 - **Weather.** `HomeData` reads Open-Meteo (current, hourly, 6 days, air quality) and the market quotes.
 - **Switching home screens.** `HomeMode` runs as a background job and uses the TV's own ADB on 127.0.0.1 (the TV asks
   you once) to set the home activity and disable the stock launcher; `Watchdog` reverts after repeated crashes.
-- **Text.** `Ui.tr("English")` looks text up in `app/assets/i18n/<lang>.json`; fonts are Inter (variable, SIL OFL).
+- **Text.** `Ui.tr("English")` looks text up in `app/assets/i18n/<lang>.json`. `Fonts` loads the font you pick into
+  the seven faces the screens use: variable fonts from `app/assets/fonts` (Inter, Google Sans Flex, Outfit) at the
+  right weight and optical size, or Apple's SF files from the app's folder on the TV (Display cuts for large text,
+  Text cuts for small).
+- **Folders and recents.** Folders are saved on the TV (`Prefs.folders`) and built into All Apps by `HomeApps.others`.
+  `Recents` reads Android's usage stats (usage access, granted by the installer) and quits an app with a force stop
+  through the TV's own ADB. Both, like Control Center, draw on the home screen's top layer.
 
 ---
 
@@ -303,11 +341,9 @@ No analytics, no ads, no account, nothing about what you watch leaves the TV.
 
 ## Roadmap
 
-- StandBy styles (Depth, Solar, World, your photos) with clock colours and two widgets
-- Folders, a full app grid and a favourites row with move mode
-- Recent apps switcher with a RAM meter
+- More StandBy styles (Depth, Solar, World, your photos) with clock colours
+- Moving apps around inside All Apps and folders
 - First-run setup wizard (profile, look, top shelf, weather, default launcher)
-- tvOS split-pane settings
 - Continue Watching on the top shelf
 - Remote button remapping and TV notifications
 
@@ -315,5 +351,6 @@ No analytics, no ads, no account, nothing about what you watch leaves the TV.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Inter is under the SIL Open Font License (`app/assets/fonts/OFL.txt`); the symbols are
+MIT. See [LICENSE](LICENSE). Inter, Google Sans Flex and Outfit are under the SIL Open Font License
+(`app/assets/fonts/OFL*.txt`; Google Sans is a trademark of Google LLC); Apple's SF fonts are not included. The symbols are
 Material Symbols (Apache 2.0, `app/assets/symbols/LICENSE-material-symbols.txt`).

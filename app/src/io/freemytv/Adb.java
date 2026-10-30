@@ -102,6 +102,8 @@ final class Adb implements Closeable {
                     adb.send(AUTH, AUTH_SIGNATURE, 0, sign(keys.getPrivate(), m.data));
                     signed = true;
                 } else if (!offeredKey) {
+                    // approvalMs 0: only if the TV already trusts the app (no prompt on the TV).
+                    if (approvalMs <= 0) throw new IOException(Ui.tr("the TV doesn't trust the app's key yet"));
                     // Unknown key: send the public one; the TV shows "Allow USB debugging?".
                     adb.send(AUTH, AUTH_RSAPUBLICKEY, 0, publicKeyBlob(keys.getPublic()));
                     offeredKey = true;

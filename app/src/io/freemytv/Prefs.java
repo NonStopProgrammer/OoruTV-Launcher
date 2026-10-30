@@ -104,6 +104,15 @@ final class Prefs {
         return "tvos";
     }
 
+    /** The font (Fonts.KEYS): "sf" (SF Pro, once its files are on the TV; Inter until then), "inter", "outfit"… */
+    static String font() {
+        String v = app == null ? "sf" : sp().getString("font", "sf");
+        for (String k : Fonts.KEYS) if (k.equals(v)) return v;
+        return "sf";
+    }
+
+    static void setFont(String v) { put("font", v); }
+
     /** "liquid" (Liquid Glass: the picture behind bends at the edges) or "frosted" (soft frosted glass, no bending). */
     static String glass() {
         return sp().getString("glass", "liquid").equals("frosted") ? "frosted" : "liquid";
@@ -153,14 +162,52 @@ final class Prefs {
     /** NIFTY 50, SENSEX and BANK NIFTY: each on by default. */
     static boolean coin(int i) { return sp().getBoolean("coin" + i, true); }
 
-    /** The screensaver's photos: "scenery" (Bing's photo of the day), "picks" (the recommendations') or "both". */
+    /**
+     * The screensaver: photos ("scenery", Bing's photo of the day; "picks", the recommendations'; or "both") or
+     * "standby" (the iPhone's StandBy: an analog clock and the month's calendar on black).
+     */
     static String screensaver() {
         String v = sp().getString("screensaver", Config.SCREENSAVER.trim().toLowerCase(java.util.Locale.ROOT));
-        return v.equals("picks") || v.equals("both") ? v : "scenery";
+        return v.equals("picks") || v.equals("both") || v.equals("standby") ? v : "scenery";
     }
 
     static void setScreensaver(String v) { put("screensaver", v); }
     static void setCoin(int i, boolean on) { put("coin" + i, on); }
+
+    // MARK: - Folders in All Apps
+
+    /** A folder: its name and its apps (packages), in order. */
+    static final class Folder {
+        String name;
+        final List<String> apps = new ArrayList<>();
+
+        Folder(String name) { this.name = name; }
+    }
+
+    /** The folders, in the order they were made: one per line, the name, a tab, then the packages with commas. */
+    static List<Folder> folders() {
+        List<Folder> out = new ArrayList<>();
+        String v = sp().getString("folders", "");
+        for (String line : v.split("\n")) {
+            int tab = line.indexOf('\t');
+            if (tab <= 0) continue;
+            Folder f = new Folder(line.substring(0, tab));
+            for (String p : line.substring(tab + 1).split(",")) if (!p.isEmpty() && !f.apps.contains(p)) f.apps.add(p);
+            out.add(f);
+        }
+        return out;
+    }
+
+    /** Saves the folders (empty ones are dropped: a folder holds at least one app). */
+    static void setFolders(List<Folder> list) {
+        StringBuilder b = new StringBuilder();
+        for (Folder f : list) {
+            if (f.apps.isEmpty()) continue;
+            if (b.length() > 0) b.append('\n');
+            b.append(f.name.replace('\t', ' ').replace('\n', ' ').trim()).append('\t').append(android.text.TextUtils.join(",", f.apps));
+        }
+        put("folders", b.toString());
+    }
 
     // MARK: - Shelf
 

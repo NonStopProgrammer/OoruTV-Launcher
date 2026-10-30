@@ -1,7 +1,6 @@
 package io.freemytv;
 
 import android.content.Context;
-import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
@@ -31,9 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * Fonts and text for the home screen, the screensaver and the settings. Font: Inter (variable, assets/fonts, SIL OFL),
- * with the "display" optical size for large text and the "text" size for small text; without it, the system font at a
- * similar weight.
+ * Fonts and text for the home screen, the screensaver and the settings. The font is the one picked in the settings
+ * (Fonts: SF Pro, SF Rounded, Inter, Google Sans, Outfit or the TV's own), with a "display" cut for large text and a
+ * "text" cut for small text.
  */
 final class Ui {
     private Ui() {}
@@ -48,46 +47,19 @@ final class Ui {
     /** Bumped when the language changes: text cached by the screens is made again. */
     static volatile int generation;
     static Typeface thin, light, displayMedium, displaySemibold, regular, medium, semibold;
-    private static boolean loaded;
+    /** The font loaded (Prefs.font()), and false while it's an SF font whose files aren't on the TV (Fonts). */
+    static String font = "";
+    static boolean fontFound = true;
     private static final Rect BOUNDS = new Rect();
     private static final RectF OVAL = new RectF();
 
+    /** Loads the font picked in the settings (again only when it changed: screens made before then make new paints). */
     static synchronized void init(Context c) {
-        if (loaded) return;
-        loaded = true;
-        AssetManager a = c.getAssets();
-        thin = font(a, 32, 200);
-        light = font(a, 32, 300);
-        displayMedium = font(a, 32, 500);
-        displaySemibold = font(a, 32, 600);
-        regular = font(a, 14, 400);
-        medium = font(a, 14, 500);
-        semibold = font(a, 14, 600);
+        String want = Prefs.font();
+        if (want.equals(font)) return;
+        font = want;
+        fontFound = Fonts.load(c, want);
     }
-
-    /** Inter at an optical size (14 = text, 32 = display) and weight; the system font if the file is missing. */
-    private static Typeface font(AssetManager a, int opticalSize, int weight) {
-        if (has(a, FONT)) {
-            try {
-                Typeface t = new Typeface.Builder(a, FONT)
-                        .setFontVariationSettings("'opsz' " + opticalSize + ", 'wght' " + weight).build();
-                if (t != null) return t;
-            } catch (RuntimeException ignored) {
-            }
-        }
-        // Typeface.create(family, weight, italic) is Android 9+; Android 8 only has regular and bold.
-        if (Build.VERSION.SDK_INT >= 28) return Weighted.create(weight);
-        return Typeface.create(Typeface.DEFAULT, weight >= 600 ? Typeface.BOLD : Typeface.NORMAL);
-    }
-
-    /** Only this class touches the Android 9 call, so Ui itself still verifies on Android 8 (like Recording.Node). */
-    private static final class Weighted {
-        static Typeface create(int weight) {
-            return Typeface.create(Typeface.DEFAULT, weight, false);
-        }
-    }
-
-    private static final String FONT = "fonts/InterVariable.ttf";
 
     // MARK: - Text in the viewer's language
 
@@ -292,13 +264,6 @@ final class Ui {
         }
     }
 
-    private static boolean has(AssetManager a, String path) {
-        try (InputStream in = a.open(path)) {
-            return in != null;
-        } catch (IOException e) {
-            return false;
-        }
-    }
 
     static Paint text(Typeface face, float size, int color) {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);

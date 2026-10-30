@@ -18,3 +18,7 @@ shots/
 .DS_Store
 Thumbs.db
 tools/.i18n-cache.json
+
+# Apple's SF font files: they stay on your computer (the installer copies them to the TV)
+/fonts/
+/scripts/fonts/

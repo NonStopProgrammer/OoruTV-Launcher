@@ -27,7 +27,9 @@ final class Icons {
     static boolean has(String name) {
         return name != null && (name.equals("wifi") || name.equals("bluetooth") || name.equals("controls")
                 || name.equals("standby") || name.equals("appearance") || name.equals("style") || name.equals("offline")
-                || name.equals("glass"));
+                || name.equals("glass") || name.equals("folder") || name.equals("folder_add") || name.equals("out")
+                || name.equals("shelf_add") || name.equals("shelf_remove") || name.equals("pencil") || name.equals("trash")
+                || name.equals("recents"));
     }
 
     static void draw(Canvas c, String name, float cx, float cy, float size, int color) {
@@ -43,6 +45,14 @@ final class Icons {
             case "appearance": appearance(c, cx, cy, size); break;
             case "style": style(c, cx, cy, size); break;
             case "glass": drop(c, cx, cy, size); break;
+            case "folder": folder(c, cx, cy, size, 0); break;
+            case "folder_add": folder(c, cx, cy, size, 1); break;
+            case "out": out(c, cx, cy, size); break;
+            case "shelf_add": shelf(c, cx, cy, size, true); break;
+            case "shelf_remove": shelf(c, cx, cy, size, false); break;
+            case "pencil": pencil(c, cx, cy, size); break;
+            case "trash": trash(c, cx, cy, size); break;
+            case "recents": recents(c, cx, cy, size); break;
             default: break;
         }
     }
@@ -123,6 +133,84 @@ final class Icons {
         PATH.close();
         c.drawPath(PATH, LINE);
         c.drawCircle(cx - r * 0.35f, by + r * 0.1f, s * 0.05f, SOLID);
+    }
+
+    /** A folder (with a plus inside: a new folder). */
+    private static void folder(Canvas c, float cx, float cy, float s, int mark) {
+        float l = cx - s * 0.4f, r = cx + s * 0.4f, t = cy - s * 0.3f, b = cy + s * 0.32f;
+        PATH.reset();
+        PATH.moveTo(l, b);
+        PATH.lineTo(l, t);
+        PATH.lineTo(cx - s * 0.1f, t);
+        PATH.lineTo(cx, t + s * 0.1f);
+        PATH.lineTo(r, t + s * 0.1f);
+        PATH.lineTo(r, b);
+        PATH.close();
+        c.drawPath(PATH, LINE);
+        if (mark == 1) {
+            float my = cy + s * 0.08f, a = s * 0.13f;
+            c.drawLine(cx - a, my, cx + a, my, LINE);
+            c.drawLine(cx, my - a, cx, my + a, LINE);
+        }
+    }
+
+    /** An arrow rising out of a tray (out of the folder). */
+    private static void out(Canvas c, float cx, float cy, float s) {
+        PATH.reset();
+        PATH.moveTo(cx - s * 0.36f, cy);
+        PATH.lineTo(cx - s * 0.36f, cy + s * 0.34f);
+        PATH.lineTo(cx + s * 0.36f, cy + s * 0.34f);
+        PATH.lineTo(cx + s * 0.36f, cy);
+        c.drawPath(PATH, LINE);
+        c.drawLine(cx, cy + s * 0.14f, cx, cy - s * 0.38f, LINE);
+        c.drawLine(cx - s * 0.16f, cy - s * 0.22f, cx, cy - s * 0.38f, LINE);
+        c.drawLine(cx + s * 0.16f, cy - s * 0.22f, cx, cy - s * 0.38f, LINE);
+    }
+
+    /** A card with a plus or a minus (on or off the shelf). */
+    private static void shelf(Canvas c, float cx, float cy, float s, boolean add) {
+        OVAL.set(cx - s * 0.4f, cy - s * 0.26f, cx + s * 0.4f, cy + s * 0.26f);
+        c.drawRoundRect(OVAL, s * 0.09f, s * 0.09f, LINE);
+        float a = s * 0.14f;
+        c.drawLine(cx - a, cy, cx + a, cy, LINE);
+        if (add) c.drawLine(cx, cy - a, cx, cy + a, LINE);
+    }
+
+    /** A pencil (rename). */
+    private static void pencil(Canvas c, float cx, float cy, float s) {
+        float d = s * 0.3f, n = s * 0.09f;
+        PATH.reset();
+        PATH.moveTo(cx - d - n * 0.2f, cy + d + n * 0.2f);
+        PATH.lineTo(cx - d + n * 0.1f, cy + d - n * 1.3f);
+        PATH.lineTo(cx + d - n * 0.6f, cy - d - n * 0.2f);
+        PATH.lineTo(cx + d + n * 0.2f, cy - d + n * 0.6f);
+        PATH.lineTo(cx - d + n * 1.3f, cy + d - n * 0.1f);
+        PATH.close();
+        c.drawPath(PATH, LINE);
+    }
+
+    /** A bin (remove the folder). */
+    private static void trash(Canvas c, float cx, float cy, float s) {
+        float t = cy - s * 0.24f;
+        c.drawLine(cx - s * 0.36f, t, cx + s * 0.36f, t, LINE);
+        c.drawLine(cx - s * 0.1f, t - s * 0.12f, cx + s * 0.1f, t - s * 0.12f, LINE);
+        PATH.reset();
+        PATH.moveTo(cx - s * 0.27f, t);
+        PATH.lineTo(cx - s * 0.22f, cy + s * 0.38f);
+        PATH.lineTo(cx + s * 0.22f, cy + s * 0.38f);
+        PATH.lineTo(cx + s * 0.27f, t);
+        c.drawPath(PATH, LINE);
+    }
+
+    /** Two stacked cards (recent apps). */
+    private static void recents(Canvas c, float cx, float cy, float s) {
+        OVAL.set(cx - s * 0.3f, cy - s * 0.18f, cx + s * 0.38f, cy + s * 0.3f);
+        c.drawRoundRect(OVAL, s * 0.07f, s * 0.07f, LINE);
+        PATH.reset();
+        PATH.moveTo(cx - s * 0.4f, cy + s * 0.18f);
+        PATH.lineTo(cx - s * 0.4f, cy - s * 0.3f);
+        PATH.lineTo(cx + s * 0.24f, cy - s * 0.3f);
+        c.drawPath(PATH, LINE);
     }
 
     private static void moon(Canvas c, float cx, float cy, float r) {

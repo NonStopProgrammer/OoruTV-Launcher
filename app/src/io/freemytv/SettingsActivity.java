@@ -12,6 +12,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -58,11 +59,21 @@ public class SettingsActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         view.resume();
-        // From ADB: am start -n io.freemytv/.SettingsActivity --ez screensaver true (straight to the preview).
+        // From ADB: am start -n io.freemytv/.SettingsActivity --ez screensaver true (straight to the preview; with
+        // --es saver standby, that style).
+        // From ADB, for screenshots: --es open home (Home Settings) or font (the font list).
+        String open = getIntent().getStringExtra("open");
+        if (open != null) {
+            getIntent().removeExtra("open");
+            view.openScreen(open);
+        }
         if (preview == null && getIntent().getBooleanExtra("screensaver", false)) {
             getIntent().removeExtra("screensaver");
             view.pause();
-            showPreview();
+            preview = new DreamView(this);
+            preview.forceStyle = getIntent().getStringExtra("saver");
+            setContentView(preview);
+            preview.start();
         }
     }
 
@@ -114,7 +125,7 @@ public class SettingsActivity extends Activity {
 
     static final class SettingsView extends View implements Choreographer.FrameCallback {
         private static final int MAIN = 0, HOME_CHOICE = 1, HOME_SETTINGS = 2, REMOTE_KEYS = 3, PICKER = 4, SHELF_EDIT = 5;
-        private static final float LIST_ROW_H = 68, LIST_ROW_GAP = 6;
+        private static final float LIST_ROW_H = 60, LIST_ROW_GAP = 6;
         private static final int PICK_VISIBLE = 9;
         // tvOS split view: a sidebar (your profile, then the sections with their colored icons) and the content pane.
         private static final float LIST_X = 730, LIST_R = 1800, LIST_TOP = 186, ROW_GAP = 8, CHOICE_H = 104;
@@ -140,7 +151,9 @@ public class SettingsActivity extends Activity {
         private final List<String> shelfOrder = new ArrayList<>();
         private boolean editingTop;
         private int pickFor, pickCurrent, pickScroll;   // pickFor: the remote button (index + 1)
-        private static final int PICK_CITY = 0, PICK_LANGUAGE = -1;
+        private static final int PICK_CITY = 0, PICK_LANGUAGE = -1, PICK_FONT = -2;
+        private Typeface[] fontFaces;      // the font picker: each name in its own font
+        private boolean[] fontMissing;     // SF fonts whose files aren't on the TV yet
         private final List<String[]> cities = new ArrayList<>();
         private String cityStatus = "";
         private final RectF tmp = new RectF(), rowRect = new RectF(), focusBox = new RectF();
@@ -309,6 +322,13 @@ public class SettingsActivity extends Activity {
             h = height;
             k = w / 1920f;
             scene.setSize(w, h);
+            makePaints();
+            dark = null;
+            loadPhoto();
+        }
+
+        /** The text paints, in the font in use (made again when the font changes). */
+        private void makePaints() {
             title = Ui.text(Ui.displaySemibold, 50 * k, 0xFFFFFFFF);
             title.setTextAlign(Paint.Align.CENTER);
             subtitle = Ui.text(Ui.regular, 26 * k, 0x99FFFFFF);
@@ -342,8 +362,22 @@ public class SettingsActivity extends Activity {
             emoji = new Paint(Paint.ANTI_ALIAS_FLAG);
             emoji.setTextAlign(Paint.Align.CENTER);
             pageTitle = Ui.text(Ui.displaySemibold, 56 * k, 0xFFFFFFFF);
-            dark = null;
-            loadPhoto();
+        }
+
+        void openScreen(String what) {
+            screen = HOME_SETTINGS;
+            focus = what.equals("font") ? FONT_ROW : 0;
+            if (what.equals("font")) openPicker(PICK_FONT);
+            invalidate();
+        }
+
+        /** A new font: loaded now, and these screens draw with it right away (the home screen when it comes back). */
+        private void setFont(String key) {
+            if (key.equals(Prefs.font())) return;
+            Prefs.setFont(key);
+            Ui.init(getContext());
+            if (w > 0) makePaints();
+            invalidate();
         }
 
         private boolean busy() {
@@ -764,8 +798,8 @@ public class SettingsActivity extends Activity {
                         if (e.getRepeatCount() == 0) backDown = true;
                     } else {
                         if (backDown && !e.isCanceled()) {
-                            if (screen == PICKER && (pickFor == PICK_CITY || pickFor == PICK_LANGUAGE)) {
-                                focus = pickFor == PICK_CITY ? CITY_ROW : 0;
+                            if (screen == PICKER && (pickFor == PICK_CITY || pickFor == PICK_LANGUAGE || pickFor == PICK_FONT)) {
+                                focus = pickFor == PICK_CITY ? CITY_ROW : pickFor == PICK_FONT ? FONT_ROW : 0;
                                 screen = HOME_SETTINGS;
                             } else if (screen == PICKER) {
                                 focus = pickFor - 1;
@@ -790,14 +824,15 @@ public class SettingsActivity extends Activity {
 
         private static final String[] UNITS = {"auto", "C", "F"}, THEMES = {"auto", "light", "dark"};
         /**
-         * Home Settings: language, temperature, theme, sounds, weather, city, markets, the screensaver's photos, then one
-         * row per index (11 rows: what the screen holds).
+         * Home Settings: language, temperature, theme, font, sounds, weather, city, markets, the screensaver's style, then
+         * one row per index (12 rows: what the screen holds).
          */
-        private static final int CITY_ROW = 5, SAVER_ROW = 7, COIN_ROWS = 8;
-        private static final String[] SAVERS = {"scenery", "picks", "both"};
+        private static final int FONT_ROW = 3, CITY_ROW = 6, SAVER_ROW = 8, COIN_ROWS = 9;
+        private static final String[] SAVERS = {"scenery", "picks", "both", "standby"};
 
         private static String saverName(String v) {
-            return v.equals("picks") ? Ui.tr("Movies and shows") : v.equals("both") ? Ui.tr("Both") : Ui.tr("Scenery");
+            return v.equals("picks") ? Ui.tr("Movies and shows") : v.equals("both") ? Ui.tr("Both")
+                    : v.equals("standby") ? Ui.tr("StandBy clock") : Ui.tr("Scenery");
         }
 
         private String[] settingLabels() {
@@ -805,11 +840,12 @@ public class SettingsActivity extends Activity {
             l.add(Ui.tr("Language"));
             l.add(Ui.tr("Temperature"));
             l.add(Ui.tr("Theme"));
+            l.add(Ui.tr("Font"));
             l.add(Ui.tr("Navigation sounds"));
             l.add(Ui.tr("Weather widget"));
             l.add(Ui.tr("City"));
             l.add(Ui.tr("Markets widget"));
-            l.add(Ui.tr("Screensaver photos"));
+            l.add(Ui.tr("Screensaver style"));
             for (String name : HomeData.COIN_NAMES) l.add(name);
             return l.toArray(new String[0]);
         }
@@ -823,10 +859,11 @@ public class SettingsActivity extends Activity {
             v[1] = unit.equals("C") ? "°C" : unit.equals("F") ? "°F" : Ui.tr("unit|Automatic");
             String theme = Prefs.theme();
             v[2] = theme.equals("light") ? Ui.tr("Light") : theme.equals("dark") ? Ui.tr("Dark") : Ui.tr("Automatic");
-            v[3] = onOff(Prefs.sounds());
-            v[4] = onOff(Prefs.weather());
+            v[FONT_ROW] = Fonts.name(Prefs.font());
+            v[4] = onOff(Prefs.sounds());
+            v[5] = onOff(Prefs.weather());
             v[CITY_ROW] = !cityStatus.isEmpty() ? cityStatus : Prefs.city().isEmpty() ? "—" : Prefs.city();
-            v[6] = onOff(Prefs.quotes());
+            v[7] = onOff(Prefs.quotes());
             v[SAVER_ROW] = saverName(Prefs.screensaver());
             // No quotes widget, nowhere to show prices: the coins read as off (and stay locked) until it is back on.
             for (int i = COIN_ROWS; i < v.length; i++) v[i] = onOff(Prefs.quotes() && Prefs.coin(i - COIN_ROWS));
@@ -905,10 +942,16 @@ public class SettingsActivity extends Activity {
                     Prefs.setTheme(THEMES[(at + dir + THEMES.length) % THEMES.length]);
                     break;
                 }
-                case 3: Prefs.setSounds(!Prefs.sounds()); break;
-                case 4: Prefs.setWeather(!Prefs.weather()); break;
+                case FONT_ROW: {
+                    // ← → step through the fonts (OK opens the list, each name in its own font).
+                    int at = java.util.Arrays.asList(Fonts.KEYS).indexOf(Prefs.font());
+                    setFont(Fonts.KEYS[(at + dir + Fonts.KEYS.length) % Fonts.KEYS.length]);
+                    return;
+                }
+                case 4: Prefs.setSounds(!Prefs.sounds()); break;
+                case 5: Prefs.setWeather(!Prefs.weather()); break;
                 case CITY_ROW: return;
-                case 6: Prefs.setQuotes(!Prefs.quotes()); break;
+                case 7: Prefs.setQuotes(!Prefs.quotes()); break;
                 case SAVER_ROW: {
                     int at = java.util.Arrays.asList(SAVERS).indexOf(Prefs.screensaver());
                     Prefs.setScreensaver(SAVERS[(at + dir + SAVERS.length) % SAVERS.length]);
@@ -1073,6 +1116,16 @@ public class SettingsActivity extends Activity {
             if (which == PICK_CITY) {
                 for (String[] city : cities) pickLabels.add(city[0]);
                 pickCurrent = -1;
+            } else if (which == PICK_FONT) {
+                Context c = getContext();
+                fontFaces = new Typeface[Fonts.KEYS.length];
+                fontMissing = new boolean[Fonts.KEYS.length];
+                for (int i = 0; i < Fonts.KEYS.length; i++) {
+                    pickLabels.add(Fonts.name(Fonts.KEYS[i]));
+                    fontFaces[i] = Fonts.preview(c, Fonts.KEYS[i]);
+                    fontMissing[i] = Fonts.KEYS[i].startsWith("sf") && !Fonts.hasApple(c, Fonts.KEYS[i].equals("sfrounded"));
+                }
+                pickCurrent = java.util.Arrays.asList(Fonts.KEYS).indexOf(Prefs.font());
             } else if (which == PICK_LANGUAGE) {
                 String[] choices = languageChoices();
                 for (String code : choices) {
@@ -1093,7 +1146,7 @@ public class SettingsActivity extends Activity {
         /** A long list (the apps): nine rows at a time, the one in use checked. */
         private void drawPicker(Canvas c) {
             Paint heading = Ui.text(Ui.displaySemibold, 46 * k, 0xFFFFFFFF);
-            String title = pickFor == PICK_CITY ? Ui.tr("City")
+            String title = pickFor == PICK_CITY ? Ui.tr("City") : pickFor == PICK_FONT ? Ui.tr("Font")
                     : pickFor == PICK_LANGUAGE ? Ui.tr("Language") : keyLabels()[pickFor - 1];
             c.drawText(title, LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
             int rows = rowCount();
@@ -1103,16 +1156,31 @@ public class SettingsActivity extends Activity {
                 rowRect.set(LIST_X * k, y, LIST_R * k, y + LIST_ROW_H * k);
                 float f = drawRowBackground(c, i);
                 rowLabel.setColor(blend(0xF2FFFFFF, INK, f));
+                boolean font = pickFor == PICK_FONT && fontFaces != null && at < fontFaces.length;
+                if (font) rowLabel.setTypeface(fontFaces[at]);
                 c.drawText(pickLabels.get(at), rowRect.left + 30 * k, rowRect.centerY() + Ui.halfCap(rowLabel), rowLabel);
+                if (font) rowLabel.setTypeface(Ui.medium);
+                float right = rowRect.right - 30 * k;
                 if (at == pickCurrent) {
                     float cw = Symbols.width(getContext(), "check", 26 * k);
-                    Symbols.draw(getContext(), c, "check", rowRect.right - 30 * k - cw / 2, rowRect.centerY(), 26 * k, blend(0xFFFFFFFF, INK, f));
+                    Symbols.draw(getContext(), c, "check", right - cw / 2, rowRect.centerY(), 26 * k, blend(0xFFFFFFFF, INK, f));
+                    right -= cw + 24 * k;
+                }
+                if (font && fontMissing[at]) {
+                    rowValue.setColor(blend(0x8CFFFFFF, 0x991C1C1E, f));
+                    c.drawText(Ui.tr("Add Apple's files"), right, rowRect.centerY() + Ui.halfCap(rowLabel), rowValue);
                 }
             }
             Paint hint = Ui.text(Ui.regular, 23 * k, 0x8CFFFFFF);
             float hy = (LIST_TOP + 20 + rows * (LIST_ROW_H + LIST_ROW_GAP) + 36) * k;
             c.drawText((pickScroll + focus + 1) + " / " + pickLabels.size() + "  ·  " + Ui.tr("OK picks, Back cancels."),
                     LIST_X * k + 30 * k, hy, hint);
+            if (pickFor == PICK_FONT) {
+                c.drawText(Ui.tr("SF Pro and SF Rounded are Apple's fonts: put their files in the “fonts” folder next to the"),
+                        LIST_X * k + 30 * k, hy + 38 * k, hint);
+                c.drawText(Ui.tr("installer and run it again. Until then they show as Inter and Google Sans."),
+                        LIST_X * k + 30 * k, hy + 72 * k, hint);
+            }
         }
 
         private void drawList(Canvas c) {
@@ -1164,6 +1232,10 @@ public class SettingsActivity extends Activity {
                 HomeData.get(c).settingsChanged();
                 focus = CITY_ROW;
                 screen = HOME_SETTINGS;
+            } else if (screen == PICKER && pickFor == PICK_FONT) {
+                setFont(Fonts.KEYS[pickScroll + focus]);
+                focus = FONT_ROW;
+                screen = HOME_SETTINGS;
             } else if (screen == PICKER && pickFor == PICK_LANGUAGE) {
                 Prefs.setLanguage(languageChoices()[pickScroll + focus]);
                 focus = 0;
@@ -1181,6 +1253,8 @@ public class SettingsActivity extends Activity {
                 openPicker(focus + 1);
             } else if (screen == HOME_SETTINGS && focus == 0) {
                 openPicker(PICK_LANGUAGE);
+            } else if (screen == HOME_SETTINGS && focus == FONT_ROW) {
+                openPicker(PICK_FONT);
             } else if (screen == HOME_SETTINGS && focus == CITY_ROW) {
                 askCity();
                 return;

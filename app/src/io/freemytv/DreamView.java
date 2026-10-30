@@ -123,6 +123,9 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     private final Paint glassPaint = new Paint();
     private final Set<String> failed = new HashSet<>();     // Recs.key: a movie and a series can have the same ID
     private RuntimeShader glassShader;
+    private final StandBy standBy = new StandBy();
+    private boolean standByMode;    // Screensaver style: StandBy (the clock and calendar widgets, no photos)
+    String forceStyle;              // the settings' preview of one style (from ADB: --es saver standby)
     private boolean running, dirty = true, chromeDirty = true;
     private boolean fallback;       // the aurora with the clock (no photos)
     private boolean decoding;
@@ -142,6 +145,10 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!running) return;
+            if (standByMode) {
+                handler.postDelayed(this, 60_000);
+                return;
+            }
             data.refreshIfStale();
             recs.refreshIfStale();
             if (!Prefs.screensaver().equals("picks")) scenery.refreshIfStale();
@@ -179,6 +186,14 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         if (worker.isShutdown()) worker = Executors.newSingleThreadExecutor();
         startedAt = clock();
         lastFrame = 0;
+        standByMode = "standby".equals(forceStyle != null ? forceStyle : Prefs.screensaver());
+        if (standByMode) {
+            // No photos to load: only the clock and calendar, redrawn every frame (the second hand sweeps).
+            Choreographer.getInstance().postFrameCallback(this);
+            handler.postDelayed(tick, 60_000);
+            invalidate();
+            return;
+        }
         failed.clear();
         fallback = photos().isEmpty();
         data.addListener(this);
@@ -247,6 +262,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         w = width;
         h = height;
         k = w / 1920f;
+        standBy.setSize(w, h);
         scene.setSize(w, h);
         content.setPosition(0, 0, w, h);
         chrome.setPosition(0, 0, w, h);
@@ -474,6 +490,10 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
 
     @Override protected void onDraw(Canvas canvas) {
         if (w == 0) return;
+        if (standByMode) {
+            standBy.draw(canvas, System.currentTimeMillis());
+            return;
+        }
         long up = clock();
         long now = System.currentTimeMillis();
         if (now / 60_000 != minute) {

@@ -59,6 +59,8 @@ final class HomeApps {
     static final int INPUTS = 7;
     /** The "Today" button: the Today page (Tamil date, good times, festivals, Kural, cricket, live news). */
     static final int TODAY = 8;
+    /** A folder in All Apps (Prefs.folders): its apps are in `apps`, its card shows the first six. */
+    static final int FOLDER = 9;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
     static final int TILE_W = 384, TILE_H = 216;
 
@@ -73,6 +75,8 @@ final class HomeApps {
         float logoInk;      // fraction of the logo with ink (thin logos are drawn larger, with the same "weight")
         float logoScale = 1; // size tweak by eye (compact logos need more)
         boolean connected = true;
+        List<Item> apps;    // a folder's apps
+        int folder = -1;    // a folder's place in Prefs.folders()
     }
 
     /**
@@ -404,8 +408,58 @@ final class HomeApps {
         synchronized (HomeApps.class) {
             TILES.keySet().removeIf(k -> k.contains(".") && !seen.contains(k));
         }
+        // Folders first, in the order they were made; their apps leave the list (an app is in one folder at most).
+        List<Prefs.Folder> folders = Prefs.folders();
+        List<Item> made = new ArrayList<>();
+        for (int f = 0; f < folders.size(); f++) {
+            Item folder = new Item();
+            folder.kind = FOLDER;
+            folder.folder = f;
+            folder.key = "folder:" + f;
+            folder.label = folders.get(f).name;
+            folder.apps = new ArrayList<>();
+            for (String pkg : folders.get(f).apps) {
+                for (int i = 0; i < items.size(); i++) {
+                    if (pkg.equals(items.get(i).pkg)) {
+                        folder.apps.add(items.remove(i));
+                        break;
+                    }
+                }
+            }
+            if (folder.apps.isEmpty()) continue;   // its apps were uninstalled
+            folder.tile = folderTile(folder.apps);
+            made.add(folder);
+        }
+        items.addAll(0, made);
         items.add(special(c, SETTINGS, "freemytv-settings", "OoruTV", "sparkles"));
         return items;
+    }
+
+    /** A folder's card: light frosted glass holding its first six apps in a 3 × 2 grid (tvOS's folder). */
+    private static Bitmap folderTile(List<Item> apps) {
+        Bitmap b = Bitmap.createBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(b);
+        canvas.drawColor(0x40FFFFFF);
+        float pad = 26, gap = 14, w = (TILE_W - 2 * pad - 2 * gap) / 3f, h = w * 9 / 16f;
+        float top = (TILE_H - 2 * h - gap) / 2f;
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        RectF r = new RectF();
+        Path clip = new Path();
+        for (int i = 0; i < Math.min(6, apps.size()); i++) {
+            Bitmap t = apps.get(i).tile;
+            if (t == null) continue;
+            float x = pad + (i % 3) * (w + gap), y = top + (i / 3) * (h + gap);
+            r.set(x, y, x + w, y + h);
+            clip.reset();
+            clip.addRoundRect(r, 9, 9, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(clip);
+            if (t.getConfig() == Bitmap.Config.HARDWARE) t = t.copy(Bitmap.Config.ARGB_8888, false);
+            if (t != null) canvas.drawBitmap(t, null, r, p);
+            canvas.restore();
+        }
+        b.setHasMipMap(true);
+        return b;
     }
 
     private static Item special(Context c, int kind, String key, String label, String symbol) {
@@ -825,15 +879,26 @@ final class HomeApps {
         String cacheKey = key != null ? key : pkg;
         if (TILES.containsKey(cacheKey)) return TILES.get(cacheKey);
         Bitmap logo = key == null ? null : ownLogo(c, key);
-        Bitmap tile = logo != null ? logoTile(logo, brand) : bannerTile(c, pkg);
+        Bitmap tile = logo != null ? logoTile(logo, brand) : bannerTile(c, pkg, TILE_W, TILE_H);
         if (tile == null) tile = iconTile(c, pkg);
         tile.setHasMipMap(true);
         TILES.put(cacheKey, tile);
         return tile;
     }
 
+    /** The app's All Apps card (its TV art, or its icon on a dark card). */
+    static Bitmap tile(Context c, String pkg) {
+        return appTile(c, null, pkg, 0);
+    }
+
+    /** A larger card for the recent apps switcher: the TV art drawn at 640×360, else the usual card. */
+    static Bitmap bigTile(Context c, String pkg) {
+        Bitmap b = bannerTile(c, pkg, 640, 360);
+        return b != null ? b : tile(c, pkg);
+    }
+
     /** The app's official TV art (the Android TV banner), at the highest density the app has. */
-    private static Bitmap bannerTile(Context c, String pkg) {
+    private static Bitmap bannerTile(Context c, String pkg, int tw, int th) {
         PackageManager pm = c.getPackageManager();
         Drawable d = null;
         try {
@@ -847,10 +912,10 @@ final class HomeApps {
         } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
         }
         if (d == null) return null;
-        Bitmap b = Bitmap.createBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888);
+        Bitmap b = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(b);
         canvas.drawColor(0xFF15161C);   // banners with transparency sit on a dark background
-        d.setBounds(0, 0, TILE_W, TILE_H);
+        d.setBounds(0, 0, tw, th);
         d.draw(canvas);
         return b;
     }

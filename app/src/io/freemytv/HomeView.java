@@ -82,8 +82,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // Bottom drawer (measured with it open; everything moves up by SHIFT).
     private static final float SHIFT = 560, ROW_TITLE = 518, ROW_TOP = 540, ROW_H = 126, CARDS_TOP = 708, CARDS_H = 300;
     // "All Apps" sheet.
-    private static final int COLUMNS = 5, VISIBLE_ROWS = 3;
-    private static final float GRID_W = 300, GRID_H = 169, GRID_GAP = 40, GRID_ROW = 239, GRID_TOP = 196, GRID_RADIUS = 22;
+    private static final int COLUMNS = 6, VISIBLE_ROWS = 4;
+    private static final float GRID_W = 256, GRID_H = 144, GRID_GAP = 34, GRID_ROW = 212, GRID_TOP = 178, GRID_RADIUS = 20;
     private static final int SMOKE = 0xFF111113, INK = 0xFF1C1C1E, WHITE = 0xFFF5F5F7;
     private static final int UP_COLOR = 0xFF30D158, DOWN_COLOR = 0xFFFF453A;
     private static final long TOAST_MS = 6000, FADE_MS = 800;
@@ -525,6 +525,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             case "apps": openSheet(); break;
             case "control": openControl(); break;
             case "weather": openWeather(); break;
+            case "recents": openRecents(); break;
+            case "folder":   // All Apps with its first folder open
+                openSheet();
+                if (!others.isEmpty() && others.get(0).kind == HomeApps.FOLDER) {
+                    focusedCell.setEmpty();
+                    openFolder(others.get(0));
+                }
+                break;
+            case "menu":     // All Apps with the hold menu on its first card (a folder, or an app)
+                openSheet();
+                postDelayed(() -> { if (sheetOpen) openMenu(false); }, 700);
+                break;
             default: break;
         }
         wake();
@@ -705,6 +717,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         rim.setStyle(Paint.Style.STROKE);
         rim.setStrokeWidth(2.5f * k);
         makeTvPaints();
+        makeOverlayPaints();
     }
 
     // MARK: - Frames: 60 per second while something moves; nothing is redrawn when still
@@ -731,6 +744,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean bgFading = tickBackgroundFade(up);
         boolean nightMoving = tickNight(up);
         boolean controlMoving = control.step(dt), controlItemsMoving = step(controlFocus, dt);
+        controlItemsMoving |= stepOverlays(dt, up);
         boolean glaring = tvos && glareAt != 0 && up < glareAt + GLARE_MS;
         if (sheetOpen && gridGlareAt != 0 && up < gridGlareAt + GLARE_MS) sheetLayer.invalidate();
         if (controlMoving) motionDirty = true;
@@ -1988,23 +2002,22 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void drawSheet(Canvas c) {
         c.drawColor(0x8C000000);
         float shift = scroll.value * GRID_ROW * k;
-        // tvOS: the name in a light pill above a Liquid Glass box that holds the apps.
+        // tvOS: a full-screen Liquid Glass window that holds the apps (six across), its name in a light pill on top.
+        sheetBox.set(40 * k, 40 * k, w - 40 * k, h - 40 * k);
+        tmp.set(sheetBox);
+        tmp.offset(0, 18 * k);
+        shadowDeep.setColor(0x66000000);
+        shadows.draw(c, tmp, 60 * k, DEEP_BLUR * k, shadowDeep);
+        scene.liquid(c, sheetBox, 60 * k, SMOKE, tone(0.34f, 0.46f), 0.02f, 36 * k, 28 * k, 0.9f, 1);
         String title = Ui.tr("All Apps");
-        float ph = 64 * k, pw = sheetPill.measureText(title) + 72 * k;
-        tmp.set((w - pw) / 2, 54 * k, (w + pw) / 2, 54 * k + ph);
+        float ph = 60 * k, pw = sheetPill.measureText(title) + 72 * k;
+        tmp.set((w - pw) / 2, 70 * k, (w + pw) / 2, 70 * k + ph);
         fill.setShader(null);
         fill.setColor(0xEBF4F2F4);
         c.drawRoundRect(tmp, ph / 2, ph / 2, fill);
         c.drawText(title, w / 2f, tmp.centerY() + Ui.halfCap(sheetPill), sheetPill);
-        int rowsUsed = Math.min(VISIBLE_ROWS, Math.max(1, (others.size() + COLUMNS - 1) / COLUMNS));
-        sheetBox.set(MARGIN * k, 140 * k, CONTENT_R * k, Math.min(h - 46 * k, (GRID_TOP + rowsUsed * GRID_ROW + 34) * k));
-        tmp.set(sheetBox);
-        tmp.offset(0, 18 * k);
-        shadowDeep.setColor(0x66000000);
-        shadows.draw(c, tmp, 56 * k, DEEP_BLUR * k, shadowDeep);
-        scene.liquid(c, sheetBox, 56 * k, SMOKE, tone(0.34f, 0.46f), 0.02f, 36 * k, 28 * k, 0.9f, 1);
         c.save();
-        c.clipRect(sheetBox.left, sheetBox.top + 6 * k, sheetBox.right, sheetBox.bottom - 6 * k);
+        c.clipRect(sheetBox.left, 150 * k, sheetBox.right, sheetBox.bottom - 6 * k);
         int n = others.size();
         if (gridLabels == null || gridLabels.length != n) {
             gridLabels = new String[n];
@@ -2022,7 +2035,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             float x = left + col * (GRID_W + GRID_GAP) * k;
             gridCell.set(x, y, x + GRID_W * k, y + GRID_H * k);
             float f = gridFocus[i].value;
-            drawCard(c, others.get(i).tile, gridCell, GRID_RADIUS * k, f, 0.12f, i == gridGlareIndex);
+            drawCard(c, others.get(i).tile, gridCell, GRID_RADIUS * k, f, 0.12f, i == gridGlareIndex ? gridGlareAt : 0);
             if (sheetOpen && i == gridIndex) focusedCell.set(cell);
             gridLabel.setColor(blend(0x99FFFFFF, 0xFFFFFFFF, Ui.clamp(f)));
             c.drawText(gridLabels[i], gridCell.centerX(), gridCell.bottom + (40 + 10 * f) * k, gridLabel);
@@ -2031,7 +2044,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** 16:9 sheet card. Focused (the shelf's subtle focus): it grows, with a shadow, a soft sheen and a thin border. */
-    private void drawCard(Canvas c, Bitmap image, RectF base, float radius, float f, float grow, boolean glare) {
+    private void drawCard(Canvas c, Bitmap image, RectF base, float radius, float f, float grow, long glareAt) {
         float s = 1 + grow * f;
         float cx = base.centerX(), cy = base.centerY();
         cell.set(cx - base.width() * s / 2, cy - base.height() * s / 2, cx + base.width() * s / 2, cy + base.height() * s / 2);
@@ -2072,7 +2085,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             rim.setShader(null);
             rim.setStrokeWidth(2.5f * k);
             c.restore();
-            if (glare && fc > 0.01f) drawGlareAt(c, cx, cy, bw, bh, radius, s, gridGlareAt);
+            if (glareAt != 0 && fc > 0.01f) drawGlareAt(c, cx, cy, bw, bh, radius, s, glareAt);
         }
         if (fc < 0.99f) {
             veil.setColor(Ui.alpha(0xFF000000, 0.08f * (1 - fc)));
@@ -2239,7 +2252,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                         okDown = true;
                         okHeld = false;
                         handler.removeCallbacks(holdStart);
-                        holdArmed = !controlOpen && (sheetOpen ? canToggleShelf(gridIndex) : canReorder());
+                        holdArmed = controlOpen ? overlay == OVERLAY_FOLDER && !menuOpen && folderItem != null
+                                : sheetOpen ? canHoldGrid(gridIndex) : canReorder();
                         if (holdArmed) handler.postDelayed(holdStart, HOLD_MS);
                     } else if (okDown && holdArmed && e.isLongPress()) {
                         hold();
@@ -2273,7 +2287,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void back() {
-        if (controlOpen) {
+        if (controlOpen && menuOpen && overlay == OVERLAY_FOLDER) {
+            closeMenu();   // back to the folder
+        } else if (controlOpen) {
             closeControl(false);
         } else if (sheetOpen) {
             closeSheet();
@@ -2471,6 +2487,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             openSheet();
             return;
         }
+        if (it.kind == HomeApps.FOLDER) {
+            openFolder(it);
+            return;
+        }
         if (it.kind == HomeApps.INPUTS) {
             openInputs();
             return;
@@ -2483,7 +2503,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // MARK: - Holding OK: All Apps puts the app on the shelf or takes it off; on the shelf, the app is lifted to move
 
     private void hold() {
-        if (sheetOpen) toggleShelf(); else startReorder();
+        if (controlOpen) openMenu(true);
+        else if (sheetOpen) openMenu(false);
+        else startReorder();
     }
 
     /** TalkBack's long click on an app in All Apps (once per press, if the remote's hold also arrives). */
@@ -2506,7 +2528,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (!canToggleShelf(gridIndex)) return;
         okHeld = true;
         toggledAt = SystemClock.uptimeMillis();
-        final HomeApps.Item it = others.get(gridIndex);
+        toggleShelfFor(others.get(gridIndex));
+    }
+
+    /** Puts the app at the end of the shelf, or takes it off if it's there; a toast says which. */
+    private void toggleShelfFor(final HomeApps.Item it) {
+        if (it == null || it.pkg == null) return;
         final Context c = getContext().getApplicationContext();
         click.open();
         LOADER.execute(() -> {
@@ -2535,6 +2562,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             }
             Prefs.setShelf(list);   // here, so the next hold reads the new list
             handler.post(() -> {
+                if (activity instanceof HomeActivity) ((HomeActivity) activity).prefsSeen();
                 shelfEdited = true;
                 showToast(text);
                 reload();
@@ -3322,7 +3350,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      * tight tracking, Medium details; white text over the photo; white focus with dark ink.
      */
     private static final String CONTROL_KEY = "control", WEATHER_KEY = "weather";
-    private static final int OVERLAY_CONTROL = 1, OVERLAY_WEATHER = 2, OVERLAY_PROFILE = 3;
+    private static final int OVERLAY_CONTROL = 1, OVERLAY_WEATHER = 2, OVERLAY_PROFILE = 3;   // 4 to 6: folders…
     private int overlay;
     private TextPaint tvOverview;
     private final Paint avatarPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -3343,7 +3371,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     // Control Center: StandBy (tall), Wi-Fi and Bluetooth (pills), Inputs and Settings (tiles), then round buttons.
     private static final String[] CONTROL_KEYS = {"standby", "wifi", "bluetooth", "inputs", "settings",
-            "appearance", "glass", "live", "apps", "android", "profile"};
+            "appearance", "glass", "live", "apps", "recents", "android", "profile"};
     /** The last key is the profile, in the header (not a round button). */
     private static final int CONTROL_PROFILE = CONTROL_KEYS.length - 1;
     private static final int CONTROL_ROUND = 5;
@@ -3771,9 +3799,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // Control Center
 
     private void layoutControl() {
-        float pw = 600 * k, pad = 28 * k, gap = 20 * k;
+        float pw = 640 * k, pad = 28 * k, gap = 20 * k;
         float right = CONTENT_R * k, top = CAPSULE_TOP * k;
-        float inner = pw - 2 * pad, col = (inner - gap) / 2, pill = 112 * k, round = 84 * k;
+        float inner = pw - 2 * pad, col = (inner - gap) / 2, pill = 112 * k, round = 80 * k;
         float x0 = right - pw + pad, x1 = x0 + col + gap, y = top + pad + 64 * k;
         controlRects[0].set(x0, y, x0 + col, y + 2 * pill + gap);
         controlRects[1].set(x1, y, x1 + col, y + pill);
@@ -3852,6 +3880,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     title = Ui.tr("All Apps");
                     icon = "apps";
                     break;
+                case "recents":
+                    title = Ui.tr("Recent Apps");
+                    icon = "recents";
+                    break;
                 default:
                     title = Ui.tr("TV Settings");
                     icon = "tv_settings";
@@ -3892,6 +3924,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (controlOpen) return;
         wake();
         refreshControl();
+        menuOpen = false;
         overlay = OVERLAY_CONTROL;
         controlLayer.setPivotX(CONTENT_R * k);
         controlLayer.setPivotY(CAPSULE_TOP * k);
@@ -3914,6 +3947,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** Arrows in Control Center: the nearest control that way (rows and columns of different sizes). */
     private void moveControl(int dx, int dy) {
+        if (menuOpen) {
+            moveMenu(dy);
+            return;
+        }
+        if (overlay == OVERLAY_FOLDER) {
+            moveFolder(dx, dy);
+            return;
+        }
+        if (overlay == OVERLAY_RECENTS) {
+            moveRecents(dx, dy);
+            return;
+        }
         if (overlay == OVERLAY_WEATHER) return;
         if (overlay == OVERLAY_PROFILE) {
             moveProfile(dx, dy);
@@ -3946,6 +3991,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void activateControl() {
+        if (menuOpen) {
+            activateMenu();
+            return;
+        }
+        if (overlay == OVERLAY_FOLDER) {
+            activateFolder();
+            return;
+        }
+        if (overlay == OVERLAY_RECENTS) {
+            openRecent();
+            return;
+        }
         if (overlay == OVERLAY_WEATHER) {
             closeControl(false);
             return;
@@ -4003,6 +4060,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 closeControl(false);
                 openSheet();
                 return;
+            case "recents":
+                closeControl(true);
+                openRecents();
+                return;
             default:
                 openItem(HomeApps.action(HomeApps.ANDROID_SETTINGS, "android", Ui.tr("TV Settings"), "tv_settings"), r);
         }
@@ -4035,6 +4096,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         fill.setShader(null);
         fill.setColor(0x59000000);
         c.drawRect(-w * 0.1f, -h * 0.1f, w * 1.2f, h * 1.2f, fill);
+        if (overlay == OVERLAY_RECENTS) {
+            drawRecents(c);
+            return;
+        }
+        if (overlay == OVERLAY_FOLDER || overlay == OVERLAY_MENU) {
+            if (overlay == OVERLAY_FOLDER) {
+                // An open folder sets All Apps back further, so its panel stands out (tvOS dims and blurs behind it).
+                fill.setColor(0x73000000);
+                c.drawRect(-w * 0.1f, -h * 0.1f, w * 1.2f, h * 1.2f, fill);
+                drawFolder(c);
+            }
+            if (menuOpen) drawMenu(c);
+            return;
+        }
         if (overlay == OVERLAY_WEATHER) {
             drawWeatherPanel(c);
             return;
@@ -4134,6 +4209,539 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
 
+    // MARK: - Folders, the hold menu and the recent apps switcher (on the control layer, like Control Center)
+
+    private static final int OVERLAY_FOLDER = 4, OVERLAY_MENU = 5, OVERLAY_RECENTS = 6;
+    private static final int FOLDER_COLS = 5, FOLDER_ROWS = 3, MENU_FOLDERS = 6;
+    private static final float RECENT_W = 600, RECENT_H = 338, RECENT_STEP = 700;
+    private static final long CLOSING_MS = 380;
+    private HomeApps.Item folderItem;
+    private int folderIndex, folderCols = FOLDER_COLS;
+    private Spring[] folderFocus = new Spring[0];
+    private final Spring folderScroll = new Spring(0.3f, 0.9f, 0);
+    private final RectF folderPanel = new RectF(), folderFocused = new RectF();
+    private String[] folderLabels = new String[0];
+    private long folderGlareAt;
+    private Paint folderTitle, menuLabel, menuHeader, recentLabel, recentHint;
+
+    private boolean menuOpen, menuInFolder;
+    private int menuIndex;
+    private HomeApps.Item menuItem;
+    private final List<String> menuText = new ArrayList<>(), menuAction = new ArrayList<>(), menuIcon = new ArrayList<>();
+    private Spring[] menuFocus = new Spring[0];
+    private final Spring menuPop = new Spring(0.3f, 0.82f, 0);
+    private final RectF menuBox = new RectF(), menuAnchor = new RectF(), menuRow = new RectF();
+
+    private final List<HomeApps.Item> recents = new ArrayList<>();
+    private int recentIndex;
+    private Spring[] recentFocus = new Spring[0];
+    private final Spring recentScroll = new Spring(0.3f, 0.88f, 0);
+    private String recentsNote = "", recentsMemory = "";
+    private Bitmap closingTile;
+    private final RectF closingRect = new RectF(), recentCard = new RectF();
+    private long closingAt;
+
+    private void makeOverlayPaints() {
+        folderTitle = Ui.text(Ui.displaySemibold, 54 * k, 0xFFFFFFFF);
+        folderTitle.setTextAlign(Paint.Align.CENTER);
+        folderTitle.setShadowLayer(18 * k, 0, 2 * k, 0x66000000);
+        menuLabel = Ui.text(Ui.medium, 29 * k, 0xF2FFFFFF);
+        menuHeader = Ui.text(Ui.semibold, 23 * k, 0x99FFFFFF);
+        recentLabel = Ui.text(Ui.semibold, 30 * k, 0xF2FFFFFF);
+        recentLabel.setTextAlign(Paint.Align.CENTER);
+        recentHint = Ui.text(Ui.medium, 24 * k, 0x99FFFFFF);
+        recentHint.setTextAlign(Paint.Align.CENTER);
+    }
+
+    /** Steps the folder, menu and switcher springs; true while something there moves (the control layer redraws). */
+    private boolean stepOverlays(float dt, long up) {
+        if (!controlOpen && control.value < 0.001f) return false;
+        boolean moving = step(folderFocus, dt) | folderScroll.step(dt) | step(menuFocus, dt) | menuPop.step(dt)
+                | step(recentFocus, dt) | recentScroll.step(dt);
+        if (closingTile != null) {
+            if (up - closingAt > CLOSING_MS) closingTile = null;
+            moving = true;
+        }
+        if (overlay == OVERLAY_FOLDER && folderGlareAt != 0 && up < folderGlareAt + GLARE_MS) moving = true;
+        return moving;
+    }
+
+    private static Spring[] springs(int n) {
+        Spring[] s = new Spring[n];
+        for (int i = 0; i < n; i++) s[i] = new Spring(0.3f, 0.82f, 0);
+        return s;
+    }
+
+    // Folders: the apps in a glass panel with the folder's name above, opening out of its card (tvOS).
+
+    private void openFolder(HomeApps.Item folder) {
+        if (folder == null || folder.apps == null || folder.apps.isEmpty()) return;
+        wake();
+        folderItem = folder;
+        folderIndex = 0;
+        folderFocus = springs(folder.apps.size());
+        folderLabels = new String[folder.apps.size()];
+        for (int i = 0; i < folderLabels.length; i++) folderLabels[i] = fit(folder.apps.get(i).label, gridLabel, (GRID_W - 10) * k);
+        folderScroll.snap(0);
+        layoutFolder();
+        aim(folderFocus, 0, true);
+        folderGlareAt = SystemClock.uptimeMillis() + GLARE_DELAY_MS;
+        menuOpen = false;
+        overlay = OVERLAY_FOLDER;
+        controlLayer.setPivotX(focusedCell.isEmpty() ? w / 2f : focusedCell.centerX());
+        controlLayer.setPivotY(focusedCell.isEmpty() ? h / 2f : focusedCell.centerY());
+        controlOpen = true;
+        control.target = 1;
+        controlDirty = motionDirty = true;
+    }
+
+    private void layoutFolder() {
+        int n = folderItem == null ? 0 : folderItem.apps.size();
+        folderCols = Math.max(3, Math.min(FOLDER_COLS, n));
+        int rows = Math.max(1, (n + folderCols - 1) / folderCols), visible = Math.min(rows, FOLDER_ROWS);
+        float pw = (folderCols * GRID_W + (folderCols - 1) * GRID_GAP + 2 * 56) * k, ph = (48 + visible * GRID_ROW) * k;
+        float top = (h - ph) / 2 + 44 * k;
+        folderPanel.set((w - pw) / 2, top, (w + pw) / 2, top + ph);
+    }
+
+    private void moveFolder(int dx, int dy) {
+        int n = folderItem == null ? 0 : folderItem.apps.size();
+        if (n == 0) return;
+        int cols = folderCols, r = folderIndex / cols, col = folderIndex % cols, rows = (n + cols - 1) / cols;
+        int next = folderIndex;
+        if (dx != 0) {
+            int candidate = folderIndex + dx;
+            if (candidate >= 0 && candidate < n && candidate / cols == r) next = candidate;
+        } else {
+            int targetRow = r + dy;
+            if (targetRow >= 0 && targetRow < rows) next = Math.min(n - 1, targetRow * cols + col);
+        }
+        if (next == folderIndex) return;
+        folderIndex = next;
+        aim(folderFocus, folderIndex, false);
+        int nr = folderIndex / cols, visible = Math.min(rows, FOLDER_ROWS);
+        float t = folderScroll.target;
+        if (nr < t) t = nr;
+        else if (nr > t + visible - 1) t = nr - visible + 1;
+        folderScroll.target = t;
+        folderGlareAt = SystemClock.uptimeMillis() + GLARE_DELAY_MS;
+        click.move();
+        wake();
+    }
+
+    private void activateFolder() {
+        if (folderItem == null || folderIndex >= folderItem.apps.size()) return;
+        click.open();
+        openItem(folderItem.apps.get(folderIndex), folderFocused);
+    }
+
+    private void drawFolder(Canvas c) {
+        if (folderItem == null) return;
+        float rad = 48 * k;
+        tmp.set(folderPanel);
+        tmp.offset(0, 18 * k);
+        shadowDeep.setColor(0x73000000);
+        shadows.draw(c, tmp, rad, DEEP_BLUR * k, shadowDeep);
+        scene.liquid(c, folderPanel, rad, SMOKE, tone(0.4f, 0.52f), 0.02f, 34 * k, 26 * k, 0.9f, 1);
+        c.drawText(fit(folderItem.label, folderTitle, w - 200 * k), w / 2f, folderPanel.top - 44 * k, folderTitle);
+        c.save();
+        c.clipRect(folderPanel.left, folderPanel.top + 6 * k, folderPanel.right, folderPanel.bottom - 6 * k);
+        int n = folderItem.apps.size(), cols = folderCols;
+        float left = folderPanel.left + 56 * k, top0 = folderPanel.top + 32 * k - folderScroll.value * GRID_ROW * k;
+        for (int i = 0; i < n && i < folderFocus.length; i++) {
+            float x = left + (i % cols) * (GRID_W + GRID_GAP) * k, y = top0 + (i / cols) * GRID_ROW * k;
+            if (y > h || y + GRID_ROW * k < 0) continue;
+            gridCell.set(x, y, x + GRID_W * k, y + GRID_H * k);
+            float f = folderFocus[i].value;
+            drawCard(c, folderItem.apps.get(i).tile, gridCell, GRID_RADIUS * k, f, 0.12f, i == folderIndex ? folderGlareAt : 0);
+            if (i == folderIndex) folderFocused.set(cell);
+            gridLabel.setColor(blend(0x99FFFFFF, 0xFFFFFFFF, Ui.clamp(f)));
+            c.drawText(folderLabels[i], gridCell.centerX(), gridCell.bottom + (40 + 10 * f) * k, gridLabel);
+        }
+        c.restore();
+    }
+
+    // The hold menu: holding OK on an app or a folder (in All Apps or in a folder) lists what can be done with it.
+
+    private boolean canHoldGrid(int i) {
+        if (!sheetOpen || i >= others.size()) return false;
+        HomeApps.Item it = others.get(i);
+        return (it.kind == HomeApps.APP && it.pkg != null) || it.kind == HomeApps.FOLDER;
+    }
+
+    private boolean onShelf(String pkg) {
+        for (HomeApps.Item s : shelf) if (pkg != null && pkg.equals(s.pkg)) return true;
+        return false;
+    }
+
+    private void addMenu(String text, String action, String icon) {
+        menuText.add(text);
+        menuAction.add(action);
+        menuIcon.add(icon);
+    }
+
+    private void openMenu(boolean inFolder) {
+        handler.removeCallbacks(holdStart);
+        holdArmed = false;
+        okHeld = true;   // the release after the hold opens nothing
+        HomeApps.Item it;
+        if (inFolder) it = folderItem == null || folderIndex >= folderItem.apps.size() ? null : folderItem.apps.get(folderIndex);
+        else it = gridIndex < others.size() ? others.get(gridIndex) : null;
+        if (it == null) return;
+        menuItem = it;
+        menuInFolder = inFolder;
+        menuText.clear();
+        menuAction.clear();
+        menuIcon.clear();
+        if (it.kind == HomeApps.FOLDER) {
+            addMenu(Ui.tr("Rename"), "rename", "pencil");
+            addMenu(Ui.tr("Remove the folder"), "unfolder", "trash");
+        } else {
+            boolean on = onShelf(it.pkg);
+            addMenu(on ? Ui.tr("Remove from the shelf") : Ui.tr("Add to the shelf"), "shelf", on ? "shelf_remove" : "shelf_add");
+            if (inFolder) addMenu(Ui.trf("Move out of “{folder}”", "folder", folderItem.label), "out", "out");
+            List<Prefs.Folder> folders = Prefs.folders();
+            int listed = 0;
+            for (int f = 0; f < folders.size() && listed < MENU_FOLDERS; f++) {
+                if (inFolder && f == folderItem.folder) continue;
+                addMenu(Ui.trf("Move to “{folder}”", "folder", folders.get(f).name), "move:" + f, "folder");
+                listed++;
+            }
+            addMenu(Ui.tr("New Folder"), "new", "folder_add");
+        }
+        menuIndex = 0;
+        menuFocus = springs(menuText.size());
+        aim(menuFocus, 0, true);
+        menuAnchor.set(inFolder ? folderFocused : focusedCell);
+        layoutMenu();
+        menuPop.snap(0);
+        menuPop.target = 1;
+        menuOpen = true;
+        if (!inFolder) {
+            overlay = OVERLAY_MENU;
+            controlLayer.setPivotX(menuAnchor.centerX());
+            controlLayer.setPivotY(menuAnchor.centerY());
+            controlOpen = true;
+            control.target = 1;
+        }
+        controlDirty = motionDirty = true;
+        click.open();
+        wake();
+    }
+
+    private void layoutMenu() {
+        float mw = 580 * k, row = 70 * k, head = 62 * k, pad = 12 * k;
+        float mh = head + menuText.size() * row + pad;
+        float x = menuAnchor.right + 30 * k;
+        if (x + mw > w - 40 * k) x = menuAnchor.left - 30 * k - mw;
+        x = Math.max(40 * k, x);
+        float y = Math.max(40 * k, Math.min(h - 40 * k - mh, menuAnchor.top - 8 * k));
+        menuBox.set(x, y, x + mw, y + mh);
+    }
+
+    private void moveMenu(int dy) {
+        if (dy == 0) return;
+        int next = Math.max(0, Math.min(menuText.size() - 1, menuIndex + dy));
+        if (next == menuIndex) return;
+        menuIndex = next;
+        aim(menuFocus, menuIndex, false);
+        click.move();
+        wake();
+    }
+
+    /** Closes the menu: back to the folder, or (from All Apps) the control layer fades out. */
+    private void closeMenu() {
+        menuOpen = false;
+        if (overlay == OVERLAY_MENU) closeControl(false);
+        controlDirty = true;
+        wake();
+    }
+
+    private void drawMenu(Canvas c) {
+        if (menuItem == null) return;
+        float s = 0.9f + 0.1f * menuPop.value;
+        c.save();
+        c.scale(s, s, menuBox.left < menuAnchor.left ? menuBox.right : menuBox.left, menuAnchor.centerY());
+        float rad = 34 * k, pad = 12 * k, row = 70 * k, head = 62 * k;
+        tmp.set(menuBox);
+        tmp.offset(0, 14 * k);
+        shadowDeep.setColor(0x80000000);
+        shadows.draw(c, tmp, rad, DEEP_BLUR * k, shadowDeep);
+        scene.liquid(c, menuBox, rad, SMOKE, tone(0.58f, 0.68f), 0.02f, 30 * k, 22 * k, 0.9f, 1);
+        c.drawText(fit(menuItem.label, menuHeader, menuBox.width() - 60 * k), menuBox.left + 34 * k,
+                menuBox.top + head / 2 + 6 * k + Ui.halfCap(menuHeader), menuHeader);
+        for (int i = 0; i < menuText.size() && i < menuFocus.length; i++) {
+            float y = menuBox.top + head + i * row;
+            menuRow.set(menuBox.left + pad, y, menuBox.right - pad, y + row - 6 * k);
+            float f = Ui.clamp(menuFocus[i].value);
+            if (f > 0.01f) {
+                fill.setShader(null);
+                fill.setColor(Ui.alpha(0xFFFFFFFF, f));
+                c.drawRoundRect(menuRow, 22 * k, 22 * k, fill);
+            }
+            int ink = blend(0xF2FFFFFF, 0xFF111114, f);
+            menuLabel.setColor(ink);
+            c.drawText(fit(menuText.get(i), menuLabel, menuRow.width() - 110 * k), menuRow.left + 24 * k,
+                    menuRow.centerY() + Ui.halfCap(menuLabel), menuLabel);
+            drawIcon(c, menuIcon.get(i), menuRow.right - 42 * k, menuRow.centerY(), 32 * k, ink);
+        }
+        c.restore();
+    }
+
+    private void activateMenu() {
+        if (menuItem == null || menuIndex >= menuAction.size()) return;
+        final String action = menuAction.get(menuIndex);
+        final HomeApps.Item it = menuItem;
+        final boolean fromFolder = menuInFolder;
+        click.open();
+        closeMenu();
+        if (action.equals("shelf")) {
+            toggleShelfFor(it);
+            return;
+        }
+        final List<Prefs.Folder> folders = Prefs.folders();
+        switch (action) {
+            case "rename":
+                askFolderName(Ui.tr("Rename"), it.label, name -> {
+                    if (it.folder < 0 || it.folder >= folders.size()) return;
+                    folders.get(it.folder).name = name;
+                    saveFolders(folders, folders.get(it.folder).apps.isEmpty() ? null : folders.get(it.folder).apps.get(0));
+                });
+                return;
+            case "unfolder":
+                if (it.folder < 0 || it.folder >= folders.size()) return;
+                String first = folders.get(it.folder).apps.isEmpty() ? null : folders.get(it.folder).apps.get(0);
+                folders.remove(it.folder);
+                saveFolders(folders, first);
+                showToast(Ui.trf("Folder removed: {folder}", "folder", it.label));
+                return;
+            case "new":
+                askFolderName(Ui.tr("New Folder"), "", name -> {
+                    for (Prefs.Folder f : folders) f.apps.remove(it.pkg);
+                    Prefs.Folder made = new Prefs.Folder(name);
+                    made.apps.add(it.pkg);
+                    folders.add(made);
+                    if (fromFolder) closeControl(false);
+                    saveFolders(folders, it.pkg);
+                });
+                return;
+            case "out":
+                for (Prefs.Folder f : folders) f.apps.remove(it.pkg);
+                closeControl(false);
+                saveFolders(folders, it.pkg);
+                showToast(Ui.trf("Moved out of the folder: {app}", "app", it.label));
+                return;
+            default:
+                if (!action.startsWith("move:")) return;
+                int to = Integer.parseInt(action.substring(5));
+                if (to < 0 || to >= folders.size()) return;
+                for (Prefs.Folder f : folders) f.apps.remove(it.pkg);
+                folders.get(to).apps.add(it.pkg);
+                if (fromFolder) closeControl(false);
+                saveFolders(folders, it.pkg);
+                showToast(Ui.trf("Moved to “{folder}”: {app}", "folder", folders.get(to).name, "app", it.label));
+        }
+    }
+
+    private interface NameListener {
+        void named(String name);
+    }
+
+    /** Asks for a folder's name (the TV's keyboard); an empty name is "Folder". */
+    private void askFolderName(String title, String initial, NameListener then) {
+        final android.widget.EditText field = new android.widget.EditText(activity);
+        field.setSingleLine(true);
+        field.setText(initial);
+        field.setSelection(field.getText().length());
+        field.setHint(Ui.tr("Folder"));
+        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        final Runnable done = () -> {
+            String name = field.getText().toString().replace('\t', ' ').replace('\n', ' ').trim();
+            then.named(name.isEmpty() ? Ui.tr("Folder") : name);
+        };
+        final android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(title)
+                .setView(field)
+                .setPositiveButton(android.R.string.ok, (d, which) -> done.run())
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        // Done on the TV's keyboard (or OK on the remote in the field) accepts the name.
+        field.setOnEditorActionListener((v, action, event) -> {
+            if (event != null && event.getAction() != KeyEvent.ACTION_DOWN) return true;
+            dialog.dismiss();
+            done.run();
+            return true;
+        });
+        dialog.show();
+    }
+
+    /** Saves the folders and reads All Apps again, with the focus on `pkg` (or the folder that now holds it). */
+    private void saveFolders(List<Prefs.Folder> folders, final String pkg) {
+        Prefs.setFolders(folders);
+        if (activity instanceof HomeActivity) ((HomeActivity) activity).prefsSeen();
+        final Context c = getContext().getApplicationContext();
+        LOADER.execute(() -> {
+            final List<HomeApps.Item> o = HomeApps.others(c);
+            handler.post(() -> {
+                setOthers(o);
+                if (pkg != null) {
+                    for (int i = 0; i < o.size(); i++) {
+                        HomeApps.Item x = o.get(i);
+                        boolean here = pkg.equals(x.pkg);
+                        if (!here && x.apps != null) for (HomeApps.Item a : x.apps) here |= pkg.equals(a.pkg);
+                        if (here) {
+                            gridIndex = i;
+                            break;
+                        }
+                    }
+                }
+                retargetGrid(true);
+                gridDirty = true;
+                wake();
+            });
+        });
+    }
+
+    // The recent apps switcher: the apps used lately as big cards, newest first (tvOS: press the TV button twice).
+
+    private void openRecents() {
+        wake();
+        menuOpen = false;
+        recents.clear();
+        recentFocus = new Spring[0];
+        recentIndex = 0;
+        recentScroll.snap(0);
+        closingTile = null;
+        recentsNote = Ui.tr("Loading…");
+        recentsMemory = "";
+        overlay = OVERLAY_RECENTS;
+        controlLayer.setPivotX(w / 2f);
+        controlLayer.setPivotY(h / 2f);
+        controlOpen = true;
+        control.target = 1;
+        controlDirty = motionDirty = true;
+        retarget(false);
+        final Context c = getContext().getApplicationContext();
+        LOADER.execute(() -> {
+            final List<HomeApps.Item> list = Recents.load(c);
+            final String memory = Recents.memory(c);
+            handler.post(() -> {
+                if (overlay != OVERLAY_RECENTS) return;
+                recents.clear();
+                if (list != null) recents.addAll(list);
+                recentFocus = springs(recents.size());
+                recentIndex = recents.size() > 1 ? 1 : 0;   // the app before this one, as tvOS's switcher opens
+                aim(recentFocus, recentIndex, true);
+                recentScroll.snap(recentIndex);
+                recentsMemory = memory;
+                recentsNote = list == null ? Ui.tr("Allow usage access: run the installer again, or turn on OoruTV in Settings › Apps › Special app access › Usage access.")
+                        : recents.isEmpty() ? Ui.tr("No recent apps") : "";
+                controlDirty = true;
+                wake();
+            });
+        });
+    }
+
+    private void moveRecents(int dx, int dy) {
+        if (recents.isEmpty()) return;
+        if (dy < 0) {
+            closeRecent();
+            return;
+        }
+        if (dx == 0) return;
+        int next = Math.max(0, Math.min(recents.size() - 1, recentIndex + dx));
+        if (next == recentIndex) return;
+        recentIndex = next;
+        recentScroll.target = next;
+        aim(recentFocus, recentIndex, false);
+        click.move();
+        wake();
+    }
+
+    /** Grow of the focused card (the others are 86% of its size; a fixed base keeps drawCard's gradients cached). */
+    private static final float RECENT_GROW = 1 / 0.86f - 1;
+
+    /** Card `i` as drawn with focus `f`. */
+    private void layoutRecent(int i, float f, RectF out) {
+        float s = 0.86f * (1 + RECENT_GROW * f);
+        float cx = w / 2f + (i - recentScroll.value) * RECENT_STEP * k, cy = h / 2f + 10 * k;
+        float hw = RECENT_W * k * s / 2, hh = RECENT_H * k * s / 2;
+        out.set(cx - hw, cy - hh, cx + hw, cy + hh);
+    }
+
+    private void openRecent() {
+        if (recents.isEmpty() || recentIndex >= recents.size()) return;
+        click.open();
+        HomeApps.Item it = recents.get(recentIndex);
+        layoutRecent(recentIndex, 1, recentCard);
+        openItem(it, recentCard);
+        closeControl(false);
+    }
+
+    /** ↑ on a card quits the app (a force stop); its card flies up and the others close the gap. */
+    private void closeRecent() {
+        final HomeApps.Item it = recents.get(recentIndex);
+        layoutRecent(recentIndex, recentFocus[recentIndex].value, closingRect);
+        closingTile = it.tile;
+        closingAt = SystemClock.uptimeMillis();
+        recents.remove(recentIndex);
+        Spring[] old = recentFocus;
+        recentFocus = new Spring[recents.size()];
+        for (int i = 0, j = 0; i < old.length; i++) if (i != recentIndex) recentFocus[j++] = old[i];
+        if (recentIndex >= recents.size()) recentIndex = Math.max(0, recents.size() - 1);
+        recentScroll.target = recentIndex;
+        aim(recentFocus, recentIndex, false);
+        if (recents.isEmpty()) recentsNote = Ui.tr("No recent apps");
+        click.move();
+        wake();
+        final Context c = getContext().getApplicationContext();
+        LOADER.execute(() -> {
+            boolean closed = Recents.close(c, it.pkg);
+            final String memory = Recents.memory(c);
+            handler.post(() -> {
+                recentsMemory = memory;
+                if (!closed) showToast(Ui.trf("Couldn't close {app}.", "app", it.label));
+                controlDirty = true;
+                wake();
+            });
+        });
+    }
+
+    private void drawRecents(Canvas c) {
+        // The home screen behind turns to dark frosted glass (tvOS's switcher sits over a blur of the screen).
+        recentCard.set(-w * 0.1f, -h * 0.1f, w * 1.1f, h * 1.1f);
+        scene.glass(c, recentCard, 0, SMOKE, 0.72f, 0, 0, 0, 1);
+        String title = Ui.tr("Recent Apps");
+        float ph = 64 * k, pw = sheetPill.measureText(title) + 72 * k;
+        tmp.set((w - pw) / 2, 54 * k, (w + pw) / 2, 54 * k + ph);
+        fill.setColor(0xEBF4F2F4);
+        c.drawRoundRect(tmp, ph / 2, ph / 2, fill);
+        c.drawText(title, w / 2f, tmp.centerY() + Ui.halfCap(sheetPill), sheetPill);
+        for (int i = 0; i < recents.size() && i < recentFocus.length; i++) {
+            float f = recentFocus[i].value;
+            layoutRecent(i, 0, recentCard);
+            if (recentCard.right < -200 * k || recentCard.left > w + 200 * k) continue;
+            HomeApps.Item it = recents.get(i);
+            drawCard(c, it.tile, recentCard, 30 * k, f, RECENT_GROW, 0);
+            recentLabel.setColor(blend(0x8CFFFFFF, 0xFFFFFFFF, Ui.clamp(f)));
+            c.drawText(fit(it.label, recentLabel, cell.width()), cell.centerX(), cell.top - 30 * k, recentLabel);
+        }
+        if (closingTile != null) {
+            float t = Ui.clamp((SystemClock.uptimeMillis() - closingAt) / (float) CLOSING_MS), e = t * t;
+            int save = c.saveLayerAlpha(0, 0, w, h, Math.round(255 * (1 - t)));
+            tmp.set(closingRect);
+            tmp.offset(0, -e * 700 * k);
+            roundImage(c, closingTile, tmp, 30 * k);
+            c.restoreToCount(save);
+        }
+        if (!recentsNote.isEmpty()) {
+            c.drawText(fit(recentsNote, recentHint, w - 240 * k), w / 2f, h / 2f, recentHint);
+        }
+        String hint = recents.isEmpty() ? recentsMemory
+                : Ui.tr("OK opens · ↑ closes the app · Back returns") + (recentsMemory.isEmpty() ? "" : "   ·   " + recentsMemory);
+        c.drawText(hint, w / 2f, h - 90 * k, recentHint);
+    }
+
     // MARK: - tvOS style: the weather panel (like Apple Weather) and Profile
 
     private final RectF weatherPanel = new RectF(), profilePanel = new RectF();
@@ -4151,6 +4759,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (!tvos || controlOpen) return;
         wake();
         refreshWeatherPanel();
+        menuOpen = false;
         overlay = OVERLAY_WEATHER;
         controlLayer.setPivotX(MARGIN * k);
         controlLayer.setPivotY(CAPSULE_TOP * k);
@@ -4317,6 +4926,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             }
             layoutProfile();
         }
+        menuOpen = false;
         overlay = OVERLAY_PROFILE;
         controlLayer.setPivotX(w / 2f);
         controlLayer.setPivotY(h / 2f);

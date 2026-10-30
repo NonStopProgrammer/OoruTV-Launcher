@@ -17,6 +17,7 @@ import android.widget.TextView;
 public class HomeActivity extends Activity {
     private HomeView home;
     private int prefsVersion = Prefs.version;   // settings changed while we were away: start over
+    private long lastHomeAt;   // Home pressed twice quickly: the recent apps switcher (tvOS: the TV button twice)
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -56,7 +57,8 @@ public class HomeActivity extends Activity {
 
     /**
      * For checking the screens from a computer: adb shell am start -n io.freemytv/.HomeActivity --es show apps
-     * (apps = All Apps, control = Control Center, weather, today = the Today page).
+     * (apps = All Apps, control = Control Center, weather, today = the Today page, recents, folder = the first folder,
+     * menu = the hold menu on the first app).
      */
     private void showRequested(Intent intent) {
         String what = intent == null ? null : intent.getStringExtra("show");
@@ -76,8 +78,18 @@ public class HomeActivity extends Activity {
     /** Home button pressed on the home screen: back to the entry state (focus on the first app, sheet closed). */
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        long now = android.os.SystemClock.uptimeMillis();
+        boolean homeKey = Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME);
+        boolean twice = homeKey && now - lastHomeAt < 600;
+        lastHomeAt = homeKey && !twice ? now : 0;
         if (home != null) home.reset(true);
+        if (twice && home != null) home.show("recents");
         setIntent(intent);
+    }
+
+    /** The home screen saved a setting itself (folders, the shelf): no need to start over for it. */
+    void prefsSeen() {
+        prefsVersion = Prefs.version;
     }
 
     @Override protected void onDestroy() {

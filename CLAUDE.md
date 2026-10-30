@@ -49,9 +49,16 @@ before you do it, and let them do the taps on the TV.
   Profile: `overlay`). The older card layout (`drawLightTop`) is no longer offered.
 - All Apps (`drawSheet`, `drawCard`): a Liquid Glass box with glossy tiles. Settings (`SettingsActivity`): tvOS split
   view, `drawBackdrop` (today's photo + glass window) and `drawSidebar` (profile card, sections); the main menu is the
-  sidebar. Screens for screenshots: `am start -n io.freemytv/.HomeActivity --es show apps|control|weather|today`.
+  sidebar. Screens for screenshots: `am start -n io.freemytv/.HomeActivity --es show apps|control|weather|today|recents|folder|menu`; StandBy:
+  `am start -n io.freemytv/.SettingsActivity --ez screensaver true --es saver standby`.
 - Glass: `Scene.liquid` (Liquid Glass) and `Scene.glass` (frosted). Android 13+ uses `Shaders.LIQUID`/`GLASS`; 8–12 use
   `oldGlass` + `lens` (refraction by a magnified rim). `Scene.frosted` (Glass Style) turns refraction off.
+- Fonts: `Fonts.load` fills `Ui.thin`…`Ui.semibold` from the pick (`Prefs.font()`). Never add Apple's SF files to the
+  repo or the APK (their licence forbids it): the app reads them from the TV's `files/fonts` folder, copied there by
+  the installer from a `fonts` folder (gitignored).
+- Folders (`Prefs.folders`, `HomeApps.FOLDER`), the hold menu and the recent apps switcher (`Recents`, Home twice)
+  are overlays on the control layer (`OVERLAY_FOLDER`, `OVERLAY_MENU`, `OVERLAY_RECENTS`). StandBy is `StandBy`,
+  drawn by `DreamView` when the screensaver style is `standby`.
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals
   `Ui.plural(...)`. After changing text run `python3 tools/translate.py` and fill the missing keys.
 - Settings from `config.properties` → generated `out/gen/io/freemytv/Config.java` (never edit that). What the person

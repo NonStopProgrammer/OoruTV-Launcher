@@ -94,6 +94,21 @@ $out = (Adb -s $target install -r $Apk) -join " "
 Say "  $out"
 if ($out -notmatch "Success") { Say "Install failed."; exit 1 }
 
+# Recent apps switcher: usage access (which apps were used lately).
+Adb -s $target shell appops set io.freemytv GET_USAGE_STATS allow | Out-Null
+# Apple's SF fonts (SF Pro, SF Rounded): the files you put in a "fonts" folder next to this script go to the app's own
+# folder on the TV (Settings > Home Settings > Font). They are never built into the app.
+$fontDir = Join-Path $PSScriptRoot "fonts"
+if (Test-Path $fontDir) {
+    $fonts = @(Get-ChildItem -Path $fontDir -Recurse -File | Where-Object { $_.Extension -match '^\.(otf|ttf)$' })
+    if ($fonts.Count -gt 0) {
+        Say "Copying $($fonts.Count) font files to the TV ..."
+        $tvFonts = "/sdcard/Android/data/io.freemytv/files/fonts"
+        Adb -s $target shell mkdir -p $tvFonts | Out-Null
+        foreach ($f in $fonts) { Adb -s $target push $f.FullName "$tvFonts/$($f.Name)" | Out-Null }
+    }
+}
+
 Say "Opening the home screen and taking screenshots ..."
 Adb -s $target shell am start -W -n io.freemytv/.HomeActivity | Out-Null
 Start-Sleep -Seconds 9
@@ -106,14 +121,19 @@ if (-not $Keys) {
         "apps" = @("am", "start", "-n", $homeAct, "--es", "show", "apps");
         "control" = @("am", "start", "-n", $homeAct, "--es", "show", "control");
         "weather" = @("am", "start", "-n", $homeAct, "--es", "show", "weather");
+        "recents" = @("am", "start", "-n", $homeAct, "--es", "show", "recents");
+        "folder" = @("am", "start", "-n", $homeAct, "--es", "show", "folder");
+        "menu" = @("am", "start", "-n", $homeAct, "--es", "show", "menu");
         "today" = @("am", "start", "-n", $homeAct, "--es", "show", "today");
-        "settings" = @("am", "start", "-n", "io.freemytv/.SettingsActivity")
+        "settings" = @("am", "start", "-n", "io.freemytv/.SettingsActivity");
+        "standby" = @("am", "start", "-n", "io.freemytv/.SettingsActivity", "--ez", "screensaver", "true", "--es", "saver", "standby")
     }
     foreach ($name in $screens.Keys) {
         Adb -s $target shell @($screens[$name]) | Out-Null
-        Start-Sleep -Seconds $(if ($name -eq "today" -or $name -eq "settings") { 7 } else { 3 })
+        Start-Sleep -Seconds $(if ($name -eq "today" -or $name -eq "settings" -or $name -eq "recents") { 7 } else { 3 })
         Adb -s $target shell screencap -p "/sdcard/fmt-$name.png" | Out-Null
         Adb -s $target pull "/sdcard/fmt-$name.png" "shots\$name.png" | Out-Null
+        if ($name -eq "standby") { Adb -s $target shell input keyevent KEYCODE_BACK | Out-Null; Start-Sleep -Seconds 1 }
         Adb -s $target shell am start -n $homeAct | Out-Null
         Start-Sleep -Seconds 2
     }
