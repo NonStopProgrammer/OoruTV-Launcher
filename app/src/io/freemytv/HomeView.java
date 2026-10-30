@@ -3300,7 +3300,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     // Control Center: StandBy (tall), Wi-Fi and Bluetooth (pills), Inputs and Settings (tiles), then round buttons.
     private static final String[] CONTROL_KEYS = {"standby", "wifi", "bluetooth", "inputs", "settings",
-            "appearance", "glass", "style", "live", "apps", "android", "profile"};
+            "appearance", "glass", "live", "apps", "android", "profile"};
     /** The last key is the profile, in the header (not a round button). */
     private static final int CONTROL_PROFILE = CONTROL_KEYS.length - 1;
     private static final int CONTROL_ROUND = 5;
@@ -3794,11 +3794,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     icon = Prefs.avatar();
                     break;
                 }
-                case "style":
-                    title = Ui.tr("Home Style");
-                    status = tvos ? "tvOS" : Ui.tr("Classic");
-                    icon = "style";
-                    break;
                 case "live":
                     title = Ui.tr("Live TV");
                     icon = "live_tv";
@@ -3950,10 +3945,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 return;
             case "profile":
                 openProfile();
-                return;
-            case "style":
-                Prefs.setStyle(tvos ? "classic" : "tvos");
-                activity.recreate();
                 return;
             case "live":
                 openItem(HomeApps.action(HomeApps.LIVE_TV, "live", Ui.tr("Live TV"), "live_tv"), r);

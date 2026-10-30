@@ -101,10 +101,8 @@ final class Prefs {
      * the clock and weather, Control Center) or "classic" (the Apple TV app's For You page with cards and tabs).
      */
     static String style() {
-        return sp().getString("style", "tvos").equals("classic") ? "classic" : "tvos";
+        return "tvos";
     }
-
-    static void setStyle(String v) { put("style", v); }
 
     /** "liquid" (Liquid Glass: the picture behind bends at the edges) or "frosted" (soft frosted glass, no bending). */
     static String glass() {

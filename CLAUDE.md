@@ -44,9 +44,9 @@ before you do it, and let them do the taps on the TV.
   AGSL (`RuntimeShader`) is guarded by a try/catch in `Scene`, which then draws the Canvas glass.
 - `HomeView` draws the home screen by hand on one Canvas, in layers; keep 60 fps: no allocations in `onDraw`, no work
   on the UI thread. `Ui.LEGACY` (Android 8–11) skips GPU layers and uses cached blurred shadows (`Shadows`).
-- tvOS style (`Prefs.style()` = `tvos`, the default): top shelf (`drawTvSky`, `drawTvHero`), weather pill and status
-  pill (`layoutTvStatus`, `drawTvStatus`), overlays on the control layer (Control Center, weather panel, Profile:
-  `overlay`). Classic style keeps the For You cards (`drawLightTop`).
+- The home screen is the tvOS style (`tvos` is always true): top shelf (`drawTvSky`, `drawTvHero`), weather pill and
+  status pill (`layoutTvStatus`, `drawTvStatus`), overlays on the control layer (Control Center, weather panel,
+  Profile: `overlay`). The older card layout (`drawLightTop`) is no longer offered.
 - Glass: `Scene.liquid` (Liquid Glass) and `Scene.glass` (frosted). Android 13+ uses `Shaders.LIQUID`/`GLASS`; 8–12 use
   `oldGlass` + `lens` (refraction by a magnified rim). `Scene.frosted` (Glass Style) turns refraction off.
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals

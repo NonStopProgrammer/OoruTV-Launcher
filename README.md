@@ -47,14 +47,14 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 - **Status pill** (top right): your avatar, the clock and round glass buttons (Today, Live TV, Inputs, Settings,
   Control Center). The focused one turns white with dark ink and shows its name.
 - **Control Center** (the remote's **Menu** key, or the last round button): StandBy, Wi-Fi and Bluetooth status,
-  Inputs, Settings, Dark Mode, Glass Style, Home Style, Live TV, All Apps and the TV's own settings, under the time,
+  Inputs, Settings, Dark Mode, Glass Style, Live TV, All Apps and the TV's own settings, under the time,
   the date and your profile.
 - **Profile**: a name and one of ten emoji avatars, shown in the status pill and Control Center.
 - **Bottom drawer** (**↓** from the apps): HDMI inputs and Live TV, shortcuts, today's weather with air quality, and
   market quotes (NIFTY 50, SENSEX, BANK NIFTY, or crypto) with the day's change.
-- **All Apps**, **Today** page (date, Panchang, Thirukkural, cricket, news) and a **YouTube** tab with your channels.
+- **All Apps** and the **Today** page (date, Panchang, Thirukkural, cricket, news) over today's photo, with Liquid
+  Glass cards.
 - **Dark Mode**: on, off, or automatically from sunset to sunrise at your location.
-- **Classic style**: switch to an Apple-TV-app layout (title, tabs and recommendation cards) from Control Center.
 
 **Screensaver**: Bing's photo of the day (or the picks' photos) with a slow Ken Burns zoom, a big Liquid Glass clock,
 the date, weather and quotes, and a Thirukkural couplet.
@@ -143,7 +143,7 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 | Apps | **↓** | Open the drawer: inputs, shortcuts, weather, quotes |
 | Top shelf | **← →** / **OK** | Browse the picks / open the pick in its app |
 | Top shelf | **↑** | The weather pill and the status pill |
-| Anywhere | **Menu** | Control Center (also in the Classic style: Home Style switches back) |
+| Anywhere | **Menu** | Control Center |
 | Weather pill | **OK** | The weather panel |
 | Control Center | arrows / **OK** | Move / use a control; the avatar at the top opens Profile |
 | Anywhere | **Back** | Close what's open, then back to the apps |
@@ -155,7 +155,7 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 
 Most of it lives on the TV: **OoruTV → Home Settings** (language, temperature unit, theme, sounds, weather, city,
 markets, screensaver photos), **Shelf**, **Top Buttons** and **Remote Buttons**, plus **Control Center** for
-Dark Mode, Glass Style, Home Style and Profile.
+Dark Mode, Glass Style and Profile.
 
 What gets built into the APK comes from `config.properties` (never commit it):
 
@@ -168,7 +168,7 @@ What gets built into the APK comes from `config.properties` (never commit it):
 | `first_language` | Titles in this language lead the picks | `ta` |
 | `app_tiles` | Dock icons: `stock` (each app's own art) or brand tiles | `stock` |
 | `screensaver` | `scenery` (Bing photo of the day), `picks` or `both` | `scenery` |
-| `youtube_channels` | The YouTube tab's channels (`UC…` ids or `@handles`), or `off` | `@SunTV,@VijayTelevision` |
+| `youtube_channels` | YouTube channels whose newest videos join the top shelf (`UC…` ids or `@handles`), or `off` | `@SunTV,@VijayTelevision` |
 | `show_markets`, `show_crypto` | Market quotes / crypto prices | `true`, `false` |
 | `currency`, `temperature` | Price currency, `C`/`F`/`auto` | `INR`, `C` |
 | `hide_animation`, `disable_assistant` | Lighter home screen / no assistant button | `false` |
@@ -276,7 +276,7 @@ OoruTV talks only to:
 | `www.bing.com` | The screensaver's photo of the day |
 | `query1/query2.finance.yahoo.com` | Market quotes |
 | `site.api.espn.com` | Cricket scores on the Today page |
-| `www.youtube.com`, `i.ytimg.com` | The YouTube tab's channel feeds and thumbnails |
+| `www.youtube.com`, `i.ytimg.com` | Your YouTube channels' feeds and thumbnails |
 
 No analytics, no ads, no account, nothing about what you watch leaves the TV.
 

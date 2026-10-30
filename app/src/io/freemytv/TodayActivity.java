@@ -39,6 +39,8 @@ public class TodayActivity extends Activity {
         Ui.init(this);
         view = new TodayView(this);
         setContentView(view);
+        // Dark from the first frame (not the light window color) while today's photo loads.
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFF050506));
     }
 
     @Override protected void onResume() {
@@ -67,6 +69,7 @@ public class TodayActivity extends Activity {
 
         private final Context context;
         private final Scene scene = new Scene();
+        { scene.frosted = Prefs.glass().equals("frosted"); }
         private final Handler handler = new Handler(Looper.getMainLooper());
         private final ExecutorService worker = Executors.newSingleThreadExecutor();
         private final Spring[] focus = new Spring[LiveNews.CHANNELS.length];
@@ -77,6 +80,8 @@ public class TodayActivity extends Activity {
         private TextPaint kuralPaint, englishPaint;
         private StaticLayout kuralLayout, englishLayout;
         private Bitmap photo;
+        private long photoAt;           // when the photo arrived: it fades in over the dark background
+        private android.graphics.Shader dark;
         private int w, h, index;
         private float k = 1;
         private boolean running, animating;
@@ -225,10 +230,19 @@ public class TodayActivity extends Activity {
                     int[] px = new int[Backdrop.FW * Backdrop.FH];
                     frost.getPixels(px, 0, Backdrop.FW, 0, 0, Backdrop.FW, Backdrop.FH);
                     frost.recycle();
+                    // The Liquid Glass reads a lightly blurred copy (the picture bends at the cards' edges).
+                    Bitmap half = Bitmap.createScaledBitmap(image, Backdrop.GW / 2, Backdrop.GH / 2, true);
+                    Bitmap glassImage = Bitmap.createScaledBitmap(half, Backdrop.GW, Backdrop.GH, true);
+                    half.recycle();
+                    int[] gpx = new int[Backdrop.GW * Backdrop.GH];
+                    glassImage.getPixels(gpx, 0, Backdrop.GW, 0, 0, Backdrop.GW, Backdrop.GH);
+                    glassImage.recycle();
                     handler.post(() -> {
                         Bitmap old = photo;
                         photo = image;
+                        photoAt = old == null ? android.os.SystemClock.uptimeMillis() : 0;
                         scene.setFrost(px);
+                        scene.setGlassImage(gpx);
                         invalidate();
                         if (old != null) handler.postDelayed(old::recycle, 1000);
                     });
@@ -275,11 +289,20 @@ public class TodayActivity extends Activity {
 
         @Override protected void onDraw(Canvas c) {
             if (w == 0 || date == null) return;
+            // Gray to black (never the old blue sky) until today's photo has loaded, then the photo fades in.
+            float in = photoAt == 0 ? 1 : Ui.clamp((android.os.SystemClock.uptimeMillis() - photoAt) / 500f);
+            if (photo == null || in < 1) {
+                if (dark == null) dark = Ui.gradient(h, 0xFF2A2A2E, 0xFF050506);
+                fill.setShader(dark);
+                c.drawRect(0, 0, w, h, fill);
+                fill.setShader(null);
+            }
             if (photo != null) {
                 tmp.set(0, 0, w, h);
+                photoPaint.setAlpha(Math.round(255 * in * in * (3 - 2 * in)));
                 c.drawBitmap(photo, null, tmp, photoPaint);
-            } else {
-                scene.drawBackground(c);
+                photoPaint.setAlpha(255);
+                if (in < 1) postInvalidateOnAnimation();
             }
             long now = System.currentTimeMillis();
             float x = M * k;
@@ -303,7 +326,8 @@ public class TodayActivity extends Activity {
 
         private void glass(Canvas c, float left, float top, float width, float height) {
             card.set(left, top, left + width, top + height);
-            scene.glass(c, card, 30 * k, 0xFF1C1C1E, 0.42f, 0, 0, 0.02f, 1);
+            // Liquid Glass (or frosted, with Glass Style: Frosted), like the home screen's panels.
+            scene.liquid(c, card, 30 * k, 0xFF1C1C1E, 0.42f, 0.02f, 30 * k, 22 * k, 0.9f, 1);
         }
 
         private void drawTimes(Canvas c, float left, float top, float width, long now) {
