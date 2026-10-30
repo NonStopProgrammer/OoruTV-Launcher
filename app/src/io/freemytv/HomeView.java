@@ -2209,8 +2209,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 }
                 return true;
             case KeyEvent.KEYCODE_MENU:
-                // tvOS: Control Center (here from the remote's menu key, or the status pill's button).
-                if (!tvos) return false;
+                // Control Center (the remote's menu key, in both styles; in tvOS also the status pill's button).
                 if (down && e.getRepeatCount() == 0) {
                     if (controlOpen) closeControl(false);
                     else openControl();
@@ -3845,7 +3844,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void openControl() {
-        if (!tvos || controlOpen) return;
+        if (controlOpen) return;
         wake();
         refreshControl();
         overlay = OVERLAY_CONTROL;
@@ -4269,7 +4268,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private int profileIndex;
 
     private void openProfile() {
-        if (!tvos) return;
         wake();
         if (profileRects[0] == null) {
             for (int i = 0; i < profileRects.length; i++) {

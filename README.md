@@ -143,7 +143,7 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 | Apps | **↓** | Open the drawer: inputs, shortcuts, weather, quotes |
 | Top shelf | **← →** / **OK** | Browse the picks / open the pick in its app |
 | Top shelf | **↑** | The weather pill and the status pill |
-| Anywhere | **Menu** | Control Center |
+| Anywhere | **Menu** | Control Center (also in the Classic style: Home Style switches back) |
 | Weather pill | **OK** | The weather panel |
 | Control Center | arrows / **OK** | Move / use a control; the avatar at the top opens Profile |
 | Anywhere | **Back** | Close what's open, then back to the apps |
