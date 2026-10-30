@@ -47,6 +47,9 @@ before you do it, and let them do the taps on the TV.
 - The home screen is the tvOS style (`tvos` is always true): top shelf (`drawTvSky`, `drawTvHero`), weather pill and
   status pill (`layoutTvStatus`, `drawTvStatus`), overlays on the control layer (Control Center, weather panel,
   Profile: `overlay`). The older card layout (`drawLightTop`) is no longer offered.
+- All Apps (`drawSheet`, `drawCard`): a Liquid Glass box with glossy tiles. Settings (`SettingsActivity`): tvOS split
+  view, `drawBackdrop` (today's photo + glass window) and `drawSidebar` (profile card, sections); the main menu is the
+  sidebar. Screens for screenshots: `am start -n io.freemytv/.HomeActivity --es show apps|control|weather|today`.
 - Glass: `Scene.liquid` (Liquid Glass) and `Scene.glass` (frosted). Android 13+ uses `Shaders.LIQUID`/`GLASS`; 8–12 use
   `oldGlass` + `lens` (refraction by a magnified rim). `Scene.frosted` (Glass Style) turns refraction off.
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals

@@ -116,10 +116,15 @@ public class SettingsActivity extends Activity {
         private static final int MAIN = 0, HOME_CHOICE = 1, HOME_SETTINGS = 2, REMOTE_KEYS = 3, PICKER = 4, SHELF_EDIT = 5;
         private static final float LIST_ROW_H = 68, LIST_ROW_GAP = 6;
         private static final int PICK_VISIBLE = 9;
-        private static final float LIST_X = 1000, LIST_R = 1824, LIST_TOP = 186, ROW_GAP = 8, CHOICE_H = 104;
+        // tvOS split view: a sidebar (your profile, then the sections with their colored icons) and the content pane.
+        private static final float LIST_X = 730, LIST_R = 1800, LIST_TOP = 186, ROW_GAP = 8, CHOICE_H = 104;
+        private static final float SIDE_X = 84, SIDE_R = 654, DIVIDER = 692;
         // The main menu: seven rows, then the comparison, the picks (with the Watchmode credit) and two notices, all on
         // one 1080 px screen.
-        private static final float MAIN_TOP = 140, ROW_H = 62, MAIN_GAP = 4;
+        private static final float MAIN_TOP = 300, ROW_H = 74, MAIN_GAP = 8;
+        private static final int[] SIDE_COLORS = {0xFF8E5CF7, 0xFF0A84FF, 0xFF30B0C7, 0xFFFF9F0A, 0xFF5E5CE6, 0xFF8E8E93,
+                0xFF636366};
+        private static final String[] SIDE_ICONS = {"home", "bedtime", "settings", "apps", "tv", "gamepad", "tv_settings"};
         private static final int AMBER = 0xFFFFC266, INK = 0xFF1C1C1E;
 
         private final SettingsActivity activity;
@@ -150,6 +155,7 @@ public class SettingsActivity extends Activity {
         private int w, h;
         private float k = 1;
         private Paint title, subtitle, version, rowLabel, rowValue, rowSub, header, cellLabel, cellValue, warn, spinner, white, shadow;
+        private Paint rowRim, sideLabel, profileName, emoji, pageTitle;
         private TextPaint notice;
 
         private final Runnable poll = new Runnable() {
@@ -180,6 +186,7 @@ public class SettingsActivity extends Activity {
             Shaders.sky(scene.palette, System.currentTimeMillis(), wx.sunrise, wx.sunset);
             scene.setMotion(0.5f, 0.2f);
             scene.applyPalette();
+            scene.frosted = Prefs.glass().equals("frosted");
             setFocusable(true);
             setContentDescription("OoruTV");
             // TalkBack: one item per row, id = row + 1.
@@ -265,7 +272,8 @@ public class SettingsActivity extends Activity {
                 top = LIST_TOP + 20 + row * (LIST_ROW_H + LIST_ROW_GAP);
                 height = LIST_ROW_H;
             }
-            focusBox.set(LIST_X * k, top * k, LIST_R * k, (top + height) * k);
+            if (screen == MAIN) focusBox.set(SIDE_X * k, top * k, SIDE_R * k, (top + height) * k);
+            else focusBox.set(LIST_X * k, top * k, LIST_R * k, (top + height) * k);
             return focusBox;
         }
 
@@ -277,9 +285,12 @@ public class SettingsActivity extends Activity {
             handler.post(poll);
             Choreographer.getInstance().postFrameCallback(this);
             spoken.readAgain();
+            Scenery.get(getContext()).addListener(onScenery);
+            loadPhoto();
         }
 
         void pause() {
+            Scenery.get(getContext()).removeListener(onScenery);
             running = false;
             handler.removeCallbacks(poll);
             Choreographer.getInstance().removeFrameCallback(this);
@@ -289,7 +300,7 @@ public class SettingsActivity extends Activity {
             if (!running) return;
             boolean moving = busy();
             for (Spring s : pop) moving |= !s.settled();
-            if (moving || SystemClock.uptimeMillis() - lastSky >= 100) invalidate();
+            if (moving) invalidate();
             Choreographer.getInstance().postFrameCallback(this);
         }
 
@@ -323,6 +334,16 @@ public class SettingsActivity extends Activity {
             white.setColor(0xFFF5F5F7);
             shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
             shadow.setMaskFilter(new BlurMaskFilter(22 * k, BlurMaskFilter.Blur.NORMAL));
+            rowRim = new Paint(Paint.ANTI_ALIAS_FLAG);
+            rowRim.setStyle(Paint.Style.STROKE);
+            rowRim.setStrokeWidth(Math.max(1, 1.5f * k));
+            sideLabel = Ui.text(Ui.medium, 30 * k, 0xF2FFFFFF);
+            profileName = Ui.text(Ui.semibold, 32 * k, 0xFFFFFFFF);
+            emoji = new Paint(Paint.ANTI_ALIAS_FLAG);
+            emoji.setTextAlign(Paint.Align.CENTER);
+            pageTitle = Ui.text(Ui.displaySemibold, 56 * k, 0xFFFFFFFF);
+            dark = null;
+            loadPhoto();
         }
 
         private boolean busy() {
@@ -361,18 +382,8 @@ public class SettingsActivity extends Activity {
             }
             long up = SystemClock.uptimeMillis();
             float seconds = (up - startedAt) / 1000f;
-            if (up - lastSky >= 100) {
-                lastSky = up;
-                scene.advance(seconds);
-            }
-            scene.drawBackground(c);
-
-            // On the left: big symbol, title, description.
-            float cx = 500 * k;
-            Symbols.draw(getContext(), c, "sparkles", cx, 400 * k, 150 * k, 0xEBFFFFFF);
-            c.drawText("OoruTV", cx, 612 * k, title);
-            c.drawText(Ui.tr("Your TV's home screen and screensaver"), cx, 660 * k, subtitle);
-            c.drawText(versionName(getContext()), cx, 704 * k, version);
+            drawBackdrop(c);
+            drawSidebar(c, seconds);
 
             if (screen == MAIN) drawMain(c, seconds); else if (screen == HOME_CHOICE) drawChoice(c); else if (screen == PICKER) drawPicker(c); else if (screen == SHELF_EDIT) drawShelfEditor(c); else drawList(c);
         }
@@ -380,39 +391,17 @@ public class SettingsActivity extends Activity {
         private void drawMain(Canvas c, float seconds) {
             boolean working = busy();
             String busyText = busyText();
-            String mode = freeActive() ? "OoruTV" : Ui.tr("Original");
-            String[] labels = {Ui.tr("Home Screen"), Ui.tr("Screensaver"),
-                    Ui.tr("Home Settings"), Ui.tr("Shelf"), Ui.tr("Top Buttons"),
-                    Ui.tr("Remote Buttons"), Ui.tr("TV Settings")};
-            String[] values = {working ? "" : mode, Ui.tr("Preview"), "", "", "", "", ""};
-            for (int i = 0; i < labels.length; i++) {
-                float y = (MAIN_TOP + i * (ROW_H + MAIN_GAP)) * k;
-                rowRect.set(LIST_X * k, y, LIST_R * k, y + ROW_H * k);
-                float f = drawRowBackground(c, i);
-                int ink = blend(0xF2FFFFFF, INK, f);
-                rowLabel.setColor(ink);
-                float base = rowRect.centerY() + Ui.halfCap(rowLabel);
-                c.drawText(labels[i], rowRect.left + 30 * k, base, rowLabel);
-                float right = rowRect.right - 30 * k;
-                if (i >= 2) {
-                    float cw = Symbols.width(getContext(), "chevron_right", 22 * k);
-                    Symbols.draw(getContext(), c, "chevron_right", right - cw / 2, rowRect.centerY(), 22 * k, blend(0x66FFFFFF, 0x991C1C1E, f));
-                } else if (i == 0 && working) {
-                    // Switching: the current step in place of the value, with the spinning arc.
-                    String text = busyText.isEmpty() ? Ui.tr("Starting…") : busyText;
-                    rowValue.setColor(blend(0xB3FFFFFF, 0xB31C1C1E, f));
-                    String shown = TextUtils.ellipsize(text, new TextPaint(rowValue), 470 * k, TextUtils.TruncateAt.END).toString();
-                    c.drawText(shown, right, base, rowValue);
-                    float sx = right - rowValue.measureText(shown) - 26 * k;
-                    spinner.setColor(blend(0xFFFFFFFF, INK, f));
-                    Ui.spinner(c, sx, rowRect.centerY(), 12 * k, seconds * 1.3f, spinner);
-                } else {
-                    rowValue.setColor(blend(0x8CFFFFFF, 0x8C1C1C1E, f));
-                    c.drawText(values[i], right, base, rowValue);
-                }
-            }
+            // The pane: the app, then how it is doing.
+            float x = LIST_X * k + 30 * k;
+            c.drawText("OoruTV", x, 150 * k, pageTitle);
+            subtitle.setTextAlign(Paint.Align.LEFT);
+            c.drawText(Ui.tr("Your TV's home screen and screensaver"), x, 198 * k, subtitle);
+            subtitle.setTextAlign(Paint.Align.CENTER);
+            version.setTextAlign(Paint.Align.LEFT);
+            c.drawText(versionName(getContext()), x, 236 * k, version);
+            version.setTextAlign(Paint.Align.CENTER);
+            float y = 320 * k;
 
-            float y = (MAIN_TOP + labels.length * (ROW_H + MAIN_GAP) + 20) * k;
             String error = state.optString("error");
             if (working && busyText.equals(Ui.tr("Accept “Allow USB debugging?” on the TV (tick “Always allow”)."))) {
                 c.drawText(Ui.tr("On the TV: tick “Always allow” and press OK."),
@@ -463,6 +452,15 @@ public class SettingsActivity extends Activity {
         /** List row: no background; focused, white with a shadow (the Apple TV focus). Returns how focused it is. */
         private float drawRowBackground(Canvas c, int i) {
             float f = Ui.clamp(pop[i].value);
+            if (screen != MAIN) {
+                // Content rows sit on their own glass plates (tvOS).
+                float r = 18 * k;
+                white.setAlpha(26);
+                c.drawRoundRect(rowRect, r, r, white);
+                white.setAlpha(255);
+                rowRim.setColor(0x24FFFFFF);
+                c.drawRoundRect(rowRect, r, r, rowRim);
+            }
             if (f > 0.01f) {
                 float s = 1 + 0.02f * f;
                 float cx = rowRect.centerX(), cy = rowRect.centerY();
@@ -517,7 +515,7 @@ public class SettingsActivity extends Activity {
 
         /** Home screen choice: OoruTV or the original, with a check on the one in use. */
         private void drawChoice(Canvas c) {
-            Paint heading = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
+            Paint heading = Ui.text(Ui.displaySemibold, 46 * k, 0xFFFFFFFF);
             c.drawText(Ui.tr("Home Screen"), LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
             String[][] options = {{"OoruTV", Ui.tr("No ads, with the new screensaver")},
                     {Ui.tr("Original"), Ui.tr("The TV's factory home screen")}};
@@ -539,6 +537,160 @@ public class SettingsActivity extends Activity {
             c.drawText(Ui.tr("Switching takes a few seconds; the screen blinks while it measures."), LIST_X * k + 30 * k,
                     (LIST_TOP + 20 + 2 * (CHOICE_H + ROW_GAP) + 40) * k, hint);
         }
+
+        // MARK: - tvOS look: today's photo behind a Liquid Glass window, the sidebar with your profile
+
+        private android.graphics.Bitmap photo;
+        private android.graphics.Shader dark;
+        private final Paint photoPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF window = new RectF(), card = new RectF();
+        private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        private final Runnable onScenery = this::loadPhoto;
+
+        /** Today's scenery photo, darkened, and its blurred copies for the glass (as on the Today page). */
+        private void loadPhoto() {
+            if (w == 0) return;
+            List<Recs.Pick> photos = Scenery.get(getContext()).photos();
+            if (photos.isEmpty()) return;
+            final java.io.File file = Scenery.get(getContext()).file(photos.get(0));
+            if (file == null) return;
+            final int pw = w, ph = h;
+            worker.execute(() -> {
+                try {
+                    android.graphics.Bitmap[] images = Backdrop.photo(file, pw, ph, null);
+                    android.graphics.Bitmap image = images[0];
+                    images[1].recycle();
+                    new Canvas(image).drawColor(0x8C000000);
+                    android.graphics.Bitmap small = android.graphics.Bitmap.createScaledBitmap(image, Backdrop.FW / 4, Backdrop.FH / 4, true);
+                    android.graphics.Bitmap frost = android.graphics.Bitmap.createScaledBitmap(small, Backdrop.FW, Backdrop.FH, true);
+                    small.recycle();
+                    final int[] px = new int[Backdrop.FW * Backdrop.FH];
+                    frost.getPixels(px, 0, Backdrop.FW, 0, 0, Backdrop.FW, Backdrop.FH);
+                    frost.recycle();
+                    android.graphics.Bitmap half = android.graphics.Bitmap.createScaledBitmap(image, Backdrop.GW / 4, Backdrop.GH / 4, true);
+                    android.graphics.Bitmap soft = android.graphics.Bitmap.createScaledBitmap(half, Backdrop.GW, Backdrop.GH, true);
+                    half.recycle();
+                    final int[] gpx = new int[Backdrop.GW * Backdrop.GH];
+                    soft.getPixels(gpx, 0, Backdrop.GW, 0, 0, Backdrop.GW, Backdrop.GH);
+                    soft.recycle();
+                    // The window shows the photo blurred (the frosted look behind the glass), not sharp.
+                    android.graphics.Bitmap blurred = android.graphics.Bitmap.createScaledBitmap(image, pw / 16, ph / 16, true);
+                    image.recycle();
+                    handler.post(() -> {
+                        android.graphics.Bitmap old = photo;
+                        photo = blurred;
+                        scene.setFrost(px);
+                        scene.setGlassImage(gpx);
+                        invalidate();
+                        if (old != null) handler.postDelayed(old::recycle, 1000);
+                    });
+                } catch (Exception | OutOfMemoryError e) {
+                    AppLog.w("settings: photo: " + e.getMessage());
+                }
+            });
+        }
+
+        /** The photo (soft), or gray to black; then the big Liquid Glass window and the sidebar's divider. */
+        private void drawBackdrop(Canvas c) {
+            if (photo != null) {
+                tmp.set(0, 0, w, h);
+                c.drawBitmap(photo, null, tmp, photoPaint);
+            } else {
+                if (dark == null) dark = Ui.gradient(h, 0xFF2A2A2E, 0xFF050506);
+                fillPaint.setShader(dark);
+                c.drawRect(0, 0, w, h, fillPaint);
+                fillPaint.setShader(null);
+            }
+            window.set(40 * k, 40 * k, w - 40 * k, h - 40 * k);
+            scene.liquid(c, window, 60 * k, 0xFF1C1C1E, 0.46f, 0.02f, 36 * k, 28 * k, 0.9f, 1);
+            fillPaint.setColor(0x1FFFFFFF);
+            c.drawRect(DIVIDER * k, 80 * k, DIVIDER * k + Math.max(1, 1.5f * k), h - 80 * k, fillPaint);
+        }
+
+        /** The section a screen belongs to (highlighted in the sidebar while you are in it). */
+        private int parentRow() {
+            switch (screen) {
+                case HOME_CHOICE: return 0;
+                case HOME_SETTINGS: return 2;
+                case SHELF_EDIT: return editingTop ? 4 : 3;
+                case REMOTE_KEYS: return 5;
+                case PICKER: return pickFor > 0 ? 5 : 2;
+                default: return -1;
+            }
+        }
+
+        /**
+         * The sidebar: your profile (avatar and name), then the sections, each with its colored icon. On the main screen
+         * they are the menu (focused: white, dark ink); elsewhere the current section stays lit.
+         */
+        private void drawSidebar(Canvas c, float seconds) {
+            float x0 = SIDE_X * k, x1 = SIDE_R * k;
+            card.set(x0, 104 * k, x1, 252 * k);
+            white.setAlpha(30);
+            c.drawRoundRect(card, 30 * k, 30 * k, white);
+            white.setAlpha(255);
+            rowRim.setColor(0x26FFFFFF);
+            c.drawRoundRect(card, 30 * k, 30 * k, rowRim);
+            float ax = card.left + 78 * k, ay = card.centerY(), ad = 96 * k;
+            fillPaint.setColor(0xFF0A84FF);
+            c.drawCircle(ax, ay, ad / 2, fillPaint);
+            rowRim.setColor(0xE6FFFFFF);
+            rowRim.setStrokeWidth(3 * k);
+            c.drawCircle(ax, ay, ad / 2 - 1.5f * k, rowRim);
+            rowRim.setStrokeWidth(Math.max(1, 1.5f * k));
+            emoji.setTextSize(ad * 0.6f);
+            c.drawText(Prefs.avatar(), ax, ay + ad * 0.21f, emoji);
+            String name = Prefs.profileName().isEmpty() ? "OoruTV" : Prefs.profileName();
+            c.drawText(TextUtils.ellipsize(name, new TextPaint(profileName), x1 - ax - 90 * k, TextUtils.TruncateAt.END).toString(),
+                    ax + 74 * k, ay - 4 * k, profileName);
+            rowSub.setColor(0x99FFFFFF);
+            c.drawText(Ui.tr("Profile"), ax + 74 * k, ay + 32 * k, rowSub);
+
+            boolean working = screen == MAIN && busy();
+            String[] labels = {Ui.tr("Home Screen"), Ui.tr("Screensaver"), Ui.tr("Home Settings"), Ui.tr("Shelf"),
+                    Ui.tr("Top Buttons"), Ui.tr("Remote Buttons"), Ui.tr("TV Settings")};
+            int parent = parentRow();
+            for (int i = 0; i < labels.length; i++) {
+                float y = (MAIN_TOP + i * (ROW_H + MAIN_GAP)) * k;
+                rowRect.set(x0, y, x1, y + ROW_H * k);
+                float f = 0;
+                if (screen == MAIN) {
+                    f = drawRowBackground(c, i);
+                } else if (i == parent) {
+                    white.setAlpha(46);
+                    c.drawRoundRect(rowRect, 18 * k, 18 * k, white);
+                    white.setAlpha(255);
+                }
+                float sq = 46 * k, sx = rowRect.left + 18 * k, sy = rowRect.centerY() - sq / 2;
+                card.set(sx, sy, sx + sq, sy + sq);
+                fillPaint.setColor(SIDE_COLORS[i]);
+                c.drawRoundRect(card, 12 * k, 12 * k, fillPaint);
+                Symbols.draw(getContext(), c, SIDE_ICONS[i], card.centerX(), card.centerY(), 28 * k, 0xFFFFFFFF);
+                sideLabel.setColor(blend(0xF2FFFFFF, INK, f));
+                float base = rowRect.centerY() + Ui.halfCap(sideLabel);
+                c.drawText(labels[i], sx + sq + 22 * k, base, sideLabel);
+                float right = rowRect.right - 22 * k;
+                if (i == 0 && working) {
+                    spinner.setColor(blend(0xFFFFFFFF, INK, f));
+                    Ui.spinner(c, right - 12 * k, rowRect.centerY(), 12 * k, seconds * 1.3f, spinner);
+                } else if (i == 0) {
+                    rowValue.setColor(blend(0x8CFFFFFF, 0x8C1C1C1E, f));
+                    c.drawText(freeActive() ? "OoruTV" : Ui.tr("Original"), right, base, rowValue);
+                } else if (i >= 2) {
+                    float cw = Symbols.width(getContext(), "chevron_right", 20 * k);
+                    Symbols.draw(getContext(), c, "chevron_right", right - cw / 2, rowRect.centerY(), 20 * k, blend(0x59FFFFFF, 0x991C1C1E, f));
+                }
+            }
+            if (working) {
+                String text = busyText().isEmpty() ? Ui.tr("Starting…") : busyText();
+                rowSub.setColor(0xB3FFFFFF);
+                float y = (MAIN_TOP + labels.length * (ROW_H + MAIN_GAP) + 30) * k;
+                c.drawText(TextUtils.ellipsize(text, new TextPaint(rowSub), x1 - x0 - 20 * k, TextUtils.TruncateAt.END).toString(),
+                        x0 + 18 * k, y, rowSub);
+            }
+        }
+
 
         private static int blend(int a, int b, float f) {
             int aa = a >>> 24, ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
@@ -893,7 +1045,7 @@ public class SettingsActivity extends Activity {
         }
 
         private void drawShelfEditor(Canvas c) {
-            Paint heading = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
+            Paint heading = Ui.text(Ui.displaySemibold, 46 * k, 0xFFFFFFFF);
             c.drawText(editingTop ? Ui.tr("Top Buttons") : Ui.tr("Shelf"), LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
             int rows = rowCount();
             for (int i = 0; i < rows; i++) {
@@ -940,7 +1092,7 @@ public class SettingsActivity extends Activity {
 
         /** A long list (the apps): nine rows at a time, the one in use checked. */
         private void drawPicker(Canvas c) {
-            Paint heading = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
+            Paint heading = Ui.text(Ui.displaySemibold, 46 * k, 0xFFFFFFFF);
             String title = pickFor == PICK_CITY ? Ui.tr("City")
                     : pickFor == PICK_LANGUAGE ? Ui.tr("Language") : keyLabels()[pickFor - 1];
             c.drawText(title, LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
@@ -967,7 +1119,7 @@ public class SettingsActivity extends Activity {
             boolean keys = screen == REMOTE_KEYS;
             String[] labels = keys ? keyLabels() : settingLabels();
             String[] values = keys ? keyValues() : settingValues();
-            Paint heading = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
+            Paint heading = Ui.text(Ui.displaySemibold, 46 * k, 0xFFFFFFFF);
             c.drawText(keys ? Ui.tr("Remote Buttons") : Ui.tr("Home Settings"),
                     LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
             for (int i = 0; i < labels.length; i++) {

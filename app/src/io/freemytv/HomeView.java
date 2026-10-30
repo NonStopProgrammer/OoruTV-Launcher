@@ -280,7 +280,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private final TextPaint fitPaint = new TextPaint();
     private final RectF gridCell = new RectF();
     private LinearGradient[] tileShaders = new LinearGradient[0];
-    private LinearGradient tileGlow, cardSheen;
+    private LinearGradient tileGlow, cardSheen, cardRim;
+    private final RectF sheetBox = new RectF();
+    private Paint sheetPill;
+    private int gridGlareIndex = -1;
+    private long gridGlareAt;
     private float tileShaderH, cardSheenH;
     private LinearGradient[] lightSheens = new LinearGradient[0], lightRims = new LinearGradient[0];
     private float[] lightShaderW = new float[0];
@@ -514,6 +518,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         motionDirty = true;
     }
 
+    /** Opens a screen by name (HomeActivity's "show" extra): apps, control or weather. */
+    void show(String what) {
+        reset(false);
+        switch (what) {
+            case "apps": openSheet(); break;
+            case "control": openControl(); break;
+            case "weather": openWeather(); break;
+            default: break;
+        }
+        wake();
+    }
+
     /** The round buttons at the top right (Settings > Top Buttons), with their names in the current language. */
     private void setLightButtons(List<HomeApps.Item> list) {
         lightButtons.clear();
@@ -716,6 +732,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean nightMoving = tickNight(up);
         boolean controlMoving = control.step(dt), controlItemsMoving = step(controlFocus, dt);
         boolean glaring = tvos && glareAt != 0 && up < glareAt + GLARE_MS;
+        if (sheetOpen && gridGlareAt != 0 && up < gridGlareAt + GLARE_MS) sheetLayer.invalidate();
         if (controlMoving) motionDirty = true;
         if (controlMoving || controlItemsMoving || controlDirty) controlLayer.invalidate();
         controlDirty = false;
@@ -1961,13 +1978,33 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         else if (r > target + visible - 1) target = r - visible + 1;
         scroll.target = Math.max(0, Math.min(rows - visible, target));
         if (snap) scroll.snap(scroll.target);
+        if (sheetOpen && gridIndex != gridGlareIndex) {
+            gridGlareIndex = gridIndex;
+            gridGlareAt = snap ? 0 : SystemClock.uptimeMillis() + GLARE_DELAY_MS;
+        }
         spoken.focusMoved();
     }
 
     private void drawSheet(Canvas c) {
-        c.drawColor(0xA8000000);
+        c.drawColor(0x8C000000);
         float shift = scroll.value * GRID_ROW * k;
-        c.drawText(Ui.tr("All Apps"), w / 2f, 124 * k - shift, sheetTitle);
+        // tvOS: the name in a light pill above a Liquid Glass box that holds the apps.
+        String title = Ui.tr("All Apps");
+        float ph = 64 * k, pw = sheetPill.measureText(title) + 72 * k;
+        tmp.set((w - pw) / 2, 54 * k, (w + pw) / 2, 54 * k + ph);
+        fill.setShader(null);
+        fill.setColor(0xEBF4F2F4);
+        c.drawRoundRect(tmp, ph / 2, ph / 2, fill);
+        c.drawText(title, w / 2f, tmp.centerY() + Ui.halfCap(sheetPill), sheetPill);
+        int rowsUsed = Math.min(VISIBLE_ROWS, Math.max(1, (others.size() + COLUMNS - 1) / COLUMNS));
+        sheetBox.set(MARGIN * k, 140 * k, CONTENT_R * k, Math.min(h - 46 * k, (GRID_TOP + rowsUsed * GRID_ROW + 34) * k));
+        tmp.set(sheetBox);
+        tmp.offset(0, 18 * k);
+        shadowDeep.setColor(0x66000000);
+        shadows.draw(c, tmp, 56 * k, DEEP_BLUR * k, shadowDeep);
+        scene.liquid(c, sheetBox, 56 * k, SMOKE, tone(0.34f, 0.46f), 0.02f, 36 * k, 28 * k, 0.9f, 1);
+        c.save();
+        c.clipRect(sheetBox.left, sheetBox.top + 6 * k, sheetBox.right, sheetBox.bottom - 6 * k);
         int n = others.size();
         if (gridLabels == null || gridLabels.length != n) {
             gridLabels = new String[n];
@@ -1985,15 +2022,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             float x = left + col * (GRID_W + GRID_GAP) * k;
             gridCell.set(x, y, x + GRID_W * k, y + GRID_H * k);
             float f = gridFocus[i].value;
-            drawCard(c, others.get(i).tile, gridCell, GRID_RADIUS * k, f, 0.08f);
+            drawCard(c, others.get(i).tile, gridCell, GRID_RADIUS * k, f, 0.12f, i == gridGlareIndex);
             if (sheetOpen && i == gridIndex) focusedCell.set(cell);
             gridLabel.setColor(blend(0x99FFFFFF, 0xFFFFFFFF, Ui.clamp(f)));
-            c.drawText(gridLabels[i], gridCell.centerX(), gridCell.bottom + (40 + 6 * f) * k, gridLabel);
+            c.drawText(gridLabels[i], gridCell.centerX(), gridCell.bottom + (40 + 10 * f) * k, gridLabel);
         }
+        c.restore();
     }
 
     /** 16:9 sheet card. Focused (the shelf's subtle focus): it grows, with a shadow, a soft sheen and a thin border. */
-    private void drawCard(Canvas c, Bitmap image, RectF base, float radius, float f, float grow) {
+    private void drawCard(Canvas c, Bitmap image, RectF base, float radius, float f, float grow, boolean glare) {
         float s = 1 + grow * f;
         float cx = base.centerX(), cy = base.centerY();
         cell.set(cx - base.width() * s / 2, cy - base.height() * s / 2, cx + base.width() * s / 2, cy + base.height() * s / 2);
@@ -2006,34 +2044,39 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             shadows.draw(c, tmp, r, SHADOW_BLUR * k, shadow);
         }
         if (image != null) roundImage(c, image, cell, r);
-        if (f > 0.01f) {
-            float bh = base.height();
+        {
+            float bw = base.width(), bh = base.height();
             if (cardSheen == null || cardSheenH != bh) {
-                cardSheen = new LinearGradient(0, -bh / 2, 0, 0, 0x1AFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP);
+                cardSheen = new LinearGradient(0, -bh / 2, 0, 0, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP);
+                cardRim = new LinearGradient(-bw / 2, -bh / 2, bw / 2, bh / 2,
+                        new int[] {0xC7FFFFFF, 0x30FFFFFF, 0x0DFFFFFF, 0x1AFFFFFF, 0x80FFFFFF},
+                        new float[] {0, 0.22f, 0.5f, 0.78f, 1}, Shader.TileMode.CLAMP);
                 cardSheenH = bh;
             }
             c.save();
             c.translate(cx, cy);
             c.scale(s, s);
-            tmp.set(-base.width() / 2, -bh / 2, base.width() / 2, bh / 2);
+            tmp.set(-bw / 2, -bh / 2, bw / 2, bh / 2);
             sheen.setShader(cardSheen);
-            sheen.setAlpha(Math.round(255 * fc));
+            sheen.setAlpha(Math.round(255 * (0.5f + 0.5f * fc)));
             c.drawRoundRect(tmp, radius, radius, sheen);
             sheen.setAlpha(255);
+            sheen.setShader(null);
+            float in = 1.25f * k / s;
+            tmp.inset(in, in);
+            rim.setShader(cardRim);
+            rim.setStrokeWidth(2.5f * k / s);
+            rim.setAlpha(Math.round(255 * (0.55f + 0.45f * fc)));
+            c.drawRoundRect(tmp, radius - in, radius - in, rim);
+            rim.setAlpha(255);
+            rim.setShader(null);
+            rim.setStrokeWidth(2.5f * k);
             c.restore();
+            if (glare && fc > 0.01f) drawGlareAt(c, cx, cy, bw, bh, radius, s, gridGlareAt);
         }
         if (fc < 0.99f) {
             veil.setColor(Ui.alpha(0xFF000000, 0.08f * (1 - fc)));
             c.drawRoundRect(cell, r, r, veil);
-        }
-        border.setColor(0x14FFFFFF);
-        c.drawRoundRect(cell, r, r, border);
-        if (f > 0.01f) {
-            rim.setShader(null);
-            rim.setColor(Ui.alpha(0xFFFFFFFF, 0.4f * fc));
-            rim.setStrokeWidth(1.5f * k);
-            c.drawRoundRect(cell, r, r, rim);
-            rim.setStrokeWidth(2.5f * k);
         }
     }
 
@@ -3328,6 +3371,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private void makeTvPaints() {
+        sheetPill = Ui.text(Ui.semibold, 30 * k, 0xFF1C1C1E);
+        sheetPill.setTextAlign(Paint.Align.CENTER);
+        cardSheen = null;
         tileLabel = Ui.text(Ui.medium, 24 * k, 0xF2FFFFFF);
         tileLabel.setTextAlign(Paint.Align.CENTER);
         tileLabel.setShadowLayer(10 * k, 0, 1 * k, 0x80000000);
@@ -3685,9 +3731,13 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** A streak of light that crosses the app once when it gets the focus (tvOS's card glare). */
     private void drawGlare(Canvas c, float cx, float cy, float bw, float bh, float r0, float s) {
+        drawGlareAt(c, cx, cy, bw, bh, r0, s, glareAt);
+    }
+
+    private void drawGlareAt(Canvas c, float cx, float cy, float bw, float bh, float r0, float s, long at) {
         long up = SystemClock.uptimeMillis();
-        if (glareAt == 0 || up < glareAt || up > glareAt + GLARE_MS) return;
-        float t = (up - glareAt) / (float) GLARE_MS;
+        if (at == 0 || up < at || up > at + GLARE_MS) return;
+        float t = (up - at) / (float) GLARE_MS;
         t = t * t * (3 - 2 * t);
         if (glareShader == null || glareW != bw) {
             float band = bw * 0.42f;

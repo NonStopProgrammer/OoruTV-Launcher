@@ -100,15 +100,25 @@ Start-Sleep -Seconds 9
 Adb -s $target shell screencap -p /sdcard/fmt-home.png | Out-Null
 if (-not $Keys) {
     Adb -s $target pull /sdcard/fmt-home.png shots\home.png | Out-Null
-    Adb -s $target shell rm /sdcard/fmt-home.png | Out-Null
-    # The Today page, then back home.
-    Adb -s $target shell am start -W -n io.freemytv/.TodayActivity | Out-Null
-    Start-Sleep -Seconds 8
-    Adb -s $target shell screencap -p /sdcard/fmt-today.png | Out-Null
-    Adb -s $target shell input keyevent KEYCODE_BACK | Out-Null
-    Adb -s $target pull /sdcard/fmt-today.png shots\today.png | Out-Null
-    Adb -s $target shell rm /sdcard/fmt-today.png | Out-Null
-    Adb -s $target logcat -d -t 600 -s OoruTV FreeMyTV AndroidRuntime | Set-Content shots\log.txt
+    # Each screen opened directly (no remote keys), photographed, then back home.
+    $homeAct = "io.freemytv/.HomeActivity"
+    $screens = [ordered]@{
+        "apps" = @("am", "start", "-n", $homeAct, "--es", "show", "apps");
+        "control" = @("am", "start", "-n", $homeAct, "--es", "show", "control");
+        "weather" = @("am", "start", "-n", $homeAct, "--es", "show", "weather");
+        "today" = @("am", "start", "-n", $homeAct, "--es", "show", "today");
+        "settings" = @("am", "start", "-n", "io.freemytv/.SettingsActivity")
+    }
+    foreach ($name in $screens.Keys) {
+        Adb -s $target shell @($screens[$name]) | Out-Null
+        Start-Sleep -Seconds $(if ($name -eq "today" -or $name -eq "settings") { 7 } else { 3 })
+        Adb -s $target shell screencap -p "/sdcard/fmt-$name.png" | Out-Null
+        Adb -s $target pull "/sdcard/fmt-$name.png" "shots\$name.png" | Out-Null
+        Adb -s $target shell am start -n $homeAct | Out-Null
+        Start-Sleep -Seconds 2
+    }
+    Adb -s $target shell rm /sdcard/fmt-*.png | Out-Null
+    Adb -s $target logcat -d -t 600 -s OoruTV AndroidRuntime | Set-Content shots\log.txt
     Say "Done."
     exit 0
 }

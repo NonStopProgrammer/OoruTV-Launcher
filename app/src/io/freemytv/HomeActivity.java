@@ -47,7 +47,25 @@ public class HomeActivity extends Activity {
             recreate();   // a new language or city: draw everything again
             return;
         }
-        if (home != null) home.resume();
+        if (home != null) {
+            home.resume();
+            showRequested(getIntent());
+            setIntent(new Intent());
+        }
+    }
+
+    /**
+     * For checking the screens from a computer: adb shell am start -n io.freemytv/.HomeActivity --es show apps
+     * (apps = All Apps, control = Control Center, weather, today = the Today page).
+     */
+    private void showRequested(Intent intent) {
+        String what = intent == null ? null : intent.getStringExtra("show");
+        if (what == null || home == null) return;
+        if (what.equals("today")) {
+            startActivity(new Intent(this, TodayActivity.class));
+        } else {
+            home.show(what);
+        }
     }
 
     @Override protected void onPause() {
@@ -59,6 +77,7 @@ public class HomeActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (home != null) home.reset(true);
+        setIntent(intent);
     }
 
     @Override protected void onDestroy() {

@@ -9,6 +9,8 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 | Top shelf, focused | Weather | Control Center |
 |---|---|---|
 | ![Top shelf](docs/screenshots/hero.jpg) | ![Weather panel](docs/screenshots/weather.jpg) | ![Control Center](docs/screenshots/control.jpg) |
+| **All Apps** | **Settings** | **Today** |
+| ![All Apps](docs/screenshots/apps.jpg) | ![Settings](docs/screenshots/settings.jpg) | ![Today](docs/screenshots/today.jpg) |
 
 *Screenshots from a Mi TV 4i (Android 9) in Chennai.*
 
@@ -52,8 +54,11 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 - **Profile**: a name and one of ten emoji avatars, shown in the status pill and Control Center.
 - **Bottom drawer** (**↓** from the apps): HDMI inputs and Live TV, shortcuts, today's weather with air quality, and
   market quotes (NIFTY 50, SENSEX, BANK NIFTY, or crypto) with the day's change.
-- **All Apps** and the **Today** page (date, Panchang, Thirukkural, cricket, news) over today's photo, with Liquid
-  Glass cards.
+- **All Apps**: every app in a Liquid Glass box under a light name pill, as glossy tiles with a diagonal glass rim;
+  the focused one rises, catches a streak of light and shows its name.
+- **Settings** in the tvOS split view: a Liquid Glass window over today's photo, your profile at the top of the
+  sidebar, each section with its coloured icon, and content rows on their own glass plates with the white focus.
+- **Today** page (date, Panchang, Thirukkural, cricket, news) over today's photo, with Liquid Glass cards.
 - **Dark Mode**: on, off, or automatically from sunset to sunrise at your location.
 
 **Screensaver**: Bing's photo of the day (or the picks' photos) with a slow Ken Burns zoom, a big Liquid Glass clock,
@@ -144,6 +149,7 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 | Top shelf | **← →** / **OK** | Browse the picks / open the pick in its app |
 | Top shelf | **↑** | The weather pill and the status pill |
 | Anywhere | **Menu** | Control Center |
+| From a computer | `adb shell am start -n io.freemytv/.HomeActivity --es show apps` | Opens a screen directly: `apps`, `control`, `weather` or `today` (handy for screenshots) |
 | Weather pill | **OK** | The weather panel |
 | Control Center | arrows / **OK** | Move / use a control; the avatar at the top opens Profile |
 | Anywhere | **Back** | Close what's open, then back to the apps |
