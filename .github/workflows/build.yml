@@ -6,13 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -34,7 +37,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: OoruTV
-          path: |
-            OoruTV.apk
-            out/gen/io/freemytv/R.java
+          path: OoruTV.apk
           retention-days: 30
+
+      - name: Publish as the "latest" pre-release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest OoruTV.apk --prerelease --target "$GITHUB_SHA" --title "Latest build" --notes \
+            "Built automatically from ${GITHUB_SHA::7}. This APK has no TMDB key (no picks: build your own with your key, see README) and is signed with a throwaway key, so it can't update an OoruTV you built yourself."
