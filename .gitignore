@@ -1,0 +1,20 @@
+# Your settings and signing key stay on your machine
+config.properties
+*.keystore
+*.idsig
+
+# Build output
+out/
+*.apk
+__pycache__/
+
+# Installer output
+scripts/shots/
+scripts/tv-ip.txt
+tv-ip.txt
+shots/
+
+# OS files
+.DS_Store
+Thumbs.db
+tools/.i18n-cache.json

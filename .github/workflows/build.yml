@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "build-tools;34.0.0 platforms;android-34"
+
+      - name: Build OoruTV.apk
+        # No config.properties here: the build uses config.example.properties (no TMDB key, New York) and signs with
+        # a throwaway key. Build on your own machine for your city, your key and your signing key.
+        run: ./build.sh
+
+      - name: Check the APK
+        run: |
+          "$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging OoruTV.apk | head -5
+          unzip -l OoruTV.apk | tail -1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OoruTV
+          path: |
+            OoruTV.apk
+            out/gen/io/freemytv/R.java
+          retention-days: 30
