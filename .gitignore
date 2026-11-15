@@ -22,3 +22,11 @@ tools/.i18n-cache.json
 # Apple's SF font files: they stay on your computer (the installer copies them to the TV)
 /fonts/
 /scripts/fonts/
+
+# Your own pictures for custom icons (copied to the TV by the installer)
+/icons/
+/scripts/icons/
+
+# Your own pictures for custom icons (copied to the TV by the installer)
+/icons/
+/scripts/icons/

@@ -24,20 +24,20 @@ jobs:
         with:
           packages: "build-tools;34.0.0 platforms;android-34"
 
-      - name: Build OoruTV.apk
+      - name: Build XOS-Launcher.apk
         # No config.properties here: the build uses config.example.properties (no TMDB key, New York) and signs with
         # a throwaway key. Build on your own machine for your city, your key and your signing key.
         run: ./build.sh
 
       - name: Check the APK
         run: |
-          "$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging OoruTV.apk | head -5
-          unzip -l OoruTV.apk | tail -1
+          "$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging XOS-Launcher.apk | head -5
+          unzip -l XOS-Launcher.apk | tail -1
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OoruTV
-          path: OoruTV.apk
+          name: X-OS
+          path: XOS-Launcher.apk
           retention-days: 30
 
       - name: Publish as the "latest" pre-release
@@ -46,5 +46,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest OoruTV.apk --prerelease --target "$GITHUB_SHA" --title "Latest build" --notes \
-            "Built automatically from ${GITHUB_SHA::7}. This APK has no TMDB key (no picks: build your own with your key, see README) and is signed with a throwaway key, so it can't update an OoruTV you built yourself."
+          gh release create latest XOS-Launcher.apk --prerelease --target "$GITHUB_SHA" --title "Latest build" --notes \
+            "Built automatically from ${GITHUB_SHA::7}. This APK has no TMDB key (no picks: build your own with your key, see README) and is signed with a throwaway key, so it can't update an X-OS you built yourself."

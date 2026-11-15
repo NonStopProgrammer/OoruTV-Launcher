@@ -1,6 +1,6 @@
-# OoruTV Launcher: notes for AI assistants
+# X-OS Launcher: notes for AI assistants
 
-A tvOS-style home screen for Android TV and Google TV, plus a settings app that switches between OoruTV and the TV's
+A tvOS-style home screen for Android TV and Google TV, plus a settings app that switches between X-OS and the TV's
 original home screen. Plain Android app in Java (no Gradle, no libraries), built by `build.sh`.
 
 The person you're helping may not be technical. Keep it short and friendly, say what you're about to do on their TV
@@ -16,15 +16,15 @@ before you do it, and let them do the taps on the TV.
 4. **Keys are theirs and secret.** The TMDB key (and the optional Watchmode key) go only in `config.properties`. Ask them
    to paste it there themselves; never print it, never commit it. To update an app already on a TV, sign with the same
    key: `keystore=`, `key_alias=`, `key_password=` in `config.properties`.
-5. **Build:** `./build.sh` must end with `Built OoruTV.apk`.
+5. **Build:** `./build.sh` must end with `Built XOS-Launcher.apk`.
 6. **Install:** `adb connect <IP>:5555` (they accept *Allow USB debugging?* with *Always allow*), then
-   `adb install -r OoruTV.apk`. A hang means Play Protect is asking on the TV: *More details → Install anyway*.
-   On TCL also run `adb shell "appops set io.freemytv AUTO_START allow || appops set io.freemytv APP_AUTO_START allow"`.
+   `adb install -r XOS-Launcher.apk`. A hang means Play Protect is asking on the TV: *More details → Install anyway*.
+   On TCL also run `adb shell "appops set com.xos.launcher AUTO_START allow || appops set com.xos.launcher APP_AUTO_START allow"`.
 7. **Tell them what the switch does** before they make it: the home screen and screensaver change, a short list of
    promo apps is turned off (never uninstalled), and *Original* brings it all back.
-8. **They switch on the TV:** OoruTV → Home Screen → OoruTV. The app uses the TV's own ADB on 127.0.0.1, so the TV asks
+8. **They switch on the TV:** X-OS → Home Screen → X-OS. The app uses the TV's own ADB on 127.0.0.1, so the TV asks
    once more to allow debugging. Don't switch modes from the computer.
-9. **Check:** `adb logcat -s OoruTV`.
+9. **Check:** `adb logcat -s XOS`.
 
 ## Always
 
@@ -35,8 +35,10 @@ before you do it, and let them do the taps on the TV.
 - Don't change the TV's picture, sound, network or account settings.
 - Keep the way back working: *Original* and the watchdog (`Watchdog`: back to the stock home after 3 crashes in 5 min).
 - Never commit `config.properties`, `*.keystore` or any key.
-- The package id stays `io.freemytv`: changing it makes a new app on every TV (settings lost, and an install that was
-  in OoruTV mode would leave its disabled apps off).
+- The package id stays `com.xos.launcher`: changing it makes a new app on every TV (settings lost, and an install that was
+  in X-OS mode would leave its disabled apps off). Earlier builds were `io.freemytv` (OoruTV): before removing one,
+  turn back on what it turned off (`settings get global free_my_tv_disabled`, then `pm enable` each), as Original does.
+  X-OS keeps writing that same record, so it can always give those apps back.
 
 ## The code
 
@@ -49,21 +51,25 @@ before you do it, and let them do the taps on the TV.
   Profile: `overlay`). The older card layout (`drawLightTop`) is no longer offered.
 - All Apps (`drawSheet`, `drawCard`): a Liquid Glass box with glossy tiles. Settings (`SettingsActivity`): tvOS split
   view, `drawBackdrop` (today's photo + glass window) and `drawSidebar` (profile card, sections); the main menu is the
-  sidebar. Screens for screenshots: `am start -n io.freemytv/.HomeActivity --es show apps|control|weather|today|recents|folder|menu`; StandBy:
-  `am start -n io.freemytv/.SettingsActivity --ez screensaver true --es saver standby`.
+  sidebar. Screens for screenshots: `am start -n com.xos.launcher/.HomeActivity --es show apps|control|weather|today|recents|folder|menu`; StandBy:
+  `am start -n com.xos.launcher/.SettingsActivity --ez screensaver true --es saver standby`.
 - Glass: `Scene.liquid` (Liquid Glass) and `Scene.glass` (frosted). Android 13+ uses `Shaders.LIQUID`/`GLASS`; 8–12 use
   `oldGlass` + `lens` (refraction by a magnified rim). `Scene.frosted` (Glass Style) turns refraction off.
 - Fonts: `Fonts.load` fills `Ui.thin`…`Ui.semibold` from the pick (`Prefs.font()`). Never add Apple's SF files to the
   repo or the APK (their licence forbids it): the app reads them from the TV's `files/fonts` folder, copied there by
   the installer from a `fonts` folder (gitignored).
-- Folders (`Prefs.folders`, `HomeApps.FOLDER`), the hold menu and the recent apps switcher (`Recents`, Home twice)
+- The focused app's top shelf: `AppShelf` reads Android TV's Watch Next and preview programs (READ_TV_LISTINGS +
+  READ_EPG_DATA, granted by the installer or the TV's own ADB) and turns them into `Recs.Pick`s the hero shows
+  (`aimAppShelf`, `backdropOf`). `Prefs.topShelf()`: `app`, `picks` or `all`.
+- Folders (`Prefs.folders`, `HomeApps.FOLDER`), the hold menu (dock, All Apps and folders: `openMenu(MENU_*)`), custom
+  icons (`OVERLAY_ICONS`, `HomeApps.setCustomIcon`) and the recent apps switcher (`Recents`, Home twice)
   are overlays on the control layer (`OVERLAY_FOLDER`, `OVERLAY_MENU`, `OVERLAY_RECENTS`). StandBy is `StandBy`,
   drawn by `DreamView` when the screensaver style is `standby`.
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals
   `Ui.plural(...)`. After changing text run `python3 tools/translate.py` and fill the missing keys.
-- Settings from `config.properties` → generated `out/gen/io/freemytv/Config.java` (never edit that). What the person
+- Settings from `config.properties` → generated `out/gen/com/xos/launcher/Config.java` (never edit that). What the person
   changes on the TV (`Prefs`) wins over those first values.
-- After any change, `./build.sh` must end with `Built OoruTV.apk`.
+- After any change, `./build.sh` must end with `Built XOS-Launcher.apk`.
 
 ## Adapting it to another TV
 

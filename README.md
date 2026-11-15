@@ -1,10 +1,10 @@
-# OoruTV Launcher
+# X-OS Launcher
 
 **A calm, ad-free, tvOS-style home screen for Android TV and Google TV.**
 Liquid Glass, a cinematic top shelf, Control Center, Apple-Weather-style forecasts, your own profile, and nothing
 you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 1 GB TVs.
 
-![OoruTV home screen](docs/screenshots/home.jpg)
+![X-OS home screen](docs/screenshots/home.jpg)
 
 | Top shelf, focused | Weather | Control Center |
 |---|---|---|
@@ -46,8 +46,16 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 - **Top shelf**: a movie or show picked for this time of day fills the screen, with its service, title, year, genre,
   runtime, ★ rating and a two-line synopsis. It moves on by itself every 15 seconds; dots show where you are.
   Press **↑** to focus it, **← →** to browse, **OK** to open it straight in its app.
+- **The focused app's own top shelf**: rest on an app in the dock and the top shelf becomes that app's content, as on
+  an Apple TV: what you were watching in it (Continue Watching, with how far you got and a **Resume** button) and the
+  rows it puts on Android TV's home screen. Apps that share nothing leave the picks. Home Settings → Top Shelf:
+  *Focused app*, *Picks for you* or *All Continue Watching* (every app's, newest first).
 - **App dock**: your streaming apps on a Liquid Glass shelf, each in its brand colours. The focused app grows, shows
-  its name and catches a streak of light. Hold **OK** to move an app.
+  its name and catches a streak of light. Hold **OK** for its menu: **Open, Move tile, Remove from Favourites,
+  Move to a folder, New Folder…, Choose custom icon, App Info** and **Uninstall** (apps you installed).
+- **Custom icons**: any picture in the TV's Pictures or Download folder can become an app's card (the installer copies
+  an `icons` folder from your computer there). *Default* brings the app's own art back.
+- **Black by default**: the dark theme is the starting look (Home Settings → Theme for Light or Auto).
 - **Weather pill** (top left): the current conditions. Open it for an Apple-Weather-style panel: temperature, high and
   low, humidity and wind, the next hours, and a 5-day outlook with colour range bars and rain chances.
 - **Status pill** (top right): your avatar, the clock and round glass buttons (Today, Live TV, Inputs, Settings,
@@ -87,7 +95,7 @@ streaming apps on the dock (JioHotstar, Sun NXT, SonyLIV, Prime Video, Netflix, 
 
 ## Liquid Glass on every TV
 
-OoruTV picks the best glass your TV's GPU can draw, automatically:
+X-OS picks the best glass your TV's GPU can draw, automatically:
 
 | TV | What you see |
 |---|---|
@@ -104,7 +112,7 @@ Install the same APK on any TV: the Android 13+ effects switch on by themselves.
 
 ### The easy way: let an AI assistant do it
 
-Open this folder in Claude Code (or a similar coding assistant) and say *"Install OoruTV on my TV"*. It reads
+Open this folder in Claude Code (or a similar coding assistant) and say *"Install X-OS on my TV"*. It reads
 [CLAUDE.md](CLAUDE.md), checks your tools, asks for your city and TV, builds and installs. You only press OK on the TV.
 
 ### The manual way
@@ -127,27 +135,27 @@ Set `ANDROID_HOME` if `build.sh` can't find the SDK.
 
 **3. Build**
 ```bash
-git clone https://github.com/NonStopProgrammer/OoruTV-Launcher.git
-cd OoruTV-Launcher
+git clone https://github.com/NonStopProgrammer/X-OS-Launcher.git
+cd X-OS-Launcher
 ./build.sh            # first run creates config.properties
 # edit config.properties: your city, latitude/longitude, TMDB key (see Settings)
-./build.sh            # → OoruTV.apk
+./build.sh            # → XOS-Launcher.apk
 ```
 On Windows, run `./build.sh` from Git Bash.
 
 **4. Install**
 ```bash
 adb connect <TV-IP>:5555      # the TV asks "Allow USB debugging?": choose Allow, tick Always allow
-adb install -r OoruTV.apk
+adb install -r XOS-Launcher.apk
 ```
-On Windows you can instead copy `OoruTV.apk` into `scripts\` and double-click **`scripts\install.bat`**: it finds the
+On Windows you can instead copy `XOS-Launcher.apk` into `scripts\` and double-click **`scripts\install.bat`**: it finds the
 TV on your Wi-Fi by itself (the address is remembered for next time), installs, and saves a screenshot in
 `scripts\shots`.
 
 If the install hangs, Google Play Protect is asking on the TV: choose *More details → Install anyway*.
 
 **5. Make it your home screen**
-On the TV, open **OoruTV** → **Home Screen** → **OoruTV**. The TV asks once more to allow debugging (OoruTV uses
+On the TV, open **X-OS** → **Home Screen** → **X-OS**. The TV asks once more to allow debugging (X-OS uses
 the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 
 ---
@@ -157,8 +165,8 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 | Where | Key | What happens |
 |---|---|---|
 | Apps | **← →** | Move along the dock |
-| Apps | **OK** / hold **OK** | Open the app / lift it to move it (← →, then OK) |
-| All Apps | hold **OK** | The menu: shelf, New Folder, Move to a folder (on a folder: Rename, Remove) |
+| Apps | **OK** / hold **OK** | Open the app / its menu (Move tile: ← →, then OK) |
+| All Apps | hold **OK** | The menu: Favourites, New Folder, Move to a folder, custom icon, App Info, Uninstall (on a folder: Rename, Remove) |
 | A folder | **OK** / hold **OK** / **Back** | Open the app / its menu (Move out…) / close the folder |
 | Anywhere | **Home** twice | Recent apps: **← →** choose, **OK** open, **↑** quit the app |
 | Apps | **↑** | Focus the top shelf |
@@ -166,7 +174,7 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 | Top shelf | **← →** / **OK** | Browse the picks / open the pick in its app |
 | Top shelf | **↑** | The weather pill and the status pill |
 | Anywhere | **Menu** | Control Center |
-| From a computer | `adb shell am start -n io.freemytv/.HomeActivity --es show apps` | Opens a screen directly: `apps`, `control`, `weather`, `today`, `recents`, `folder` or `menu` (handy for screenshots) |
+| From a computer | `adb shell am start -n com.xos.launcher/.HomeActivity --es show apps` | Opens a screen directly: `apps`, `control`, `weather`, `today`, `recents`, `folder` or `menu` (handy for screenshots) |
 | Weather pill | **OK** | The weather panel |
 | Control Center | arrows / **OK** | Move / use a control; the avatar at the top opens Profile |
 | Anywhere | **Back** | Close what's open, then back to the apps |
@@ -176,20 +184,20 @@ the TV's own ADB to switch home screens): allow it. Press Home: you're in.
 
 ## Settings
 
-Most of it lives on the TV: **OoruTV → Home Settings** (language, temperature unit, theme, font, sounds, weather, city,
+Most of it lives on the TV: **X-OS → Home Settings** (language, temperature unit, theme, font, sounds, weather, city,
 markets, screensaver style), **Shelf**, **Top Buttons** and **Remote Buttons**, plus **Control Center** for
 Dark Mode, Glass Style and Profile.
 
 ### Apple's SF fonts
 
-SF Pro and SF Rounded are Apple's fonts, and their licence doesn't allow building them into an app, so OoruTV
+SF Pro and SF Rounded are Apple's fonts, and their licence doesn't allow building them into an app, so X-OS
 doesn't ship them. It uses the files you put on your own TV:
 
 1. Download **SF Pro** from [developer.apple.com/fonts](https://developer.apple.com/fonts/) (it includes SF Pro
    Rounded) and open it (on Windows, 7-Zip opens the `.dmg`, then the `.pkg` inside, then `Payload`).
 2. Copy the `.otf` / `.ttf` files (for example `SF-Pro-Display-*.otf`, `SF-Pro-Text-*.otf`,
    `SF-Pro-Rounded-*.otf`, or the single `SF-Pro.ttf`) into a folder named `fonts` next to `scripts/install.ps1`.
-3. Run the installer again. It copies them to `/sdcard/Android/data/io.freemytv/files/fonts` on the TV (the app's
+3. Run the installer again. It copies them to `/sdcard/Android/data/com.xos.launcher/files/fonts` on the TV (the app's
    own folder; nothing else can see them). Then pick **SF Pro** or **SF Rounded** in Home Settings → Font.
 
 Until the files are there, SF Pro shows as Inter and SF Rounded as Google Sans with round ends, and the font list says
@@ -212,7 +220,7 @@ What gets built into the APK comes from `config.properties` (never commit it):
 | `hide_animation`, `disable_assistant` | Lighter home screen / no assistant button | `false` |
 | `hide_services`, `hide_apps` | Services left out of the picks, apps left out of All Apps | `hulu` |
 | `watchmode_key` | Optional: picks open the title's own page in the app | |
-| `keystore`, `key_alias`, `key_password` | Sign with an existing key (updates need the same key) | `oorutv.keystore` |
+| `keystore`, `key_alias`, `key_password` | Sign with an existing key (updates need the same key) | `xos.keystore` |
 
 **Keys are secrets**: the TMDB and Watchmode keys stay in `config.properties` on your computer.
 
@@ -220,14 +228,14 @@ What gets built into the APK comes from `config.properties` (never commit it):
 
 ## Going back to the TV's own home screen
 
-**OoruTV → Home Screen → Original** brings back the TV's launcher, its screensaver and every app OoruTV turned off.
+**X-OS → Home Screen → Original** brings back the TV's launcher, its screensaver and every app X-OS turned off.
 A watchdog also switches back by itself if the home screen ever crashes three times in five minutes.
 
 ---
 
 ## What it changes on the TV
 
-- Sets OoruTV as the home app and screensaver.
+- Sets X-OS as the home app and screensaver.
 - Turns off (never uninstalls) the stock launcher and a short list of promo/ad apps with `pm disable-user`, so
   *Original* can bring them all back. Apps that saved a Wi-Fi network are never touched.
 - Doesn't change picture, sound, network or account settings.
@@ -240,10 +248,10 @@ A watchdog also switches back by itself if the home screen ever crashes three ti
 ./build.sh
 ```
 `build.sh` is the whole build, no Gradle: `aapt2` (resources) → `javac` (Java 8 language level) → `d8` → `zipalign`
-→ `apksigner`. It generates `out/gen/io/freemytv/Config.java` from `config.properties`.
+→ `apksigner`. It generates `out/gen/com/xos/launcher/Config.java` from `config.properties`.
 
 Every push builds on GitHub Actions ([.github/workflows/build.yml](.github/workflows/build.yml)) and attaches
-`OoruTV.apk` to the run. That build has no TMDB key and is signed with a throwaway key; build locally for yours.
+`XOS-Launcher.apk` to the run. That build has no TMDB key and is signed with a throwaway key; build locally for yours.
 
 Requirements: minSdk 26 (Android 8), targetSdk 33, compiled against android-34.
 
@@ -278,7 +286,7 @@ Requirements: minSdk 26 (Android 8), targetSdk 33, compiled against android-34.
 ```
 app/
   AndroidManifest.xml
-  src/io/freemytv/        Java sources (package id kept so updates install over existing installs)
+  src/com/xos/launcher/        Java sources (package id kept so updates install over existing installs)
     HomeView.java         the home screen: layout, drawing, focus, keys, Control Center, weather, profile
     Scene.java            glass and background (AGSL on 13+, Canvas on 8–12)
     Shaders.java          AGSL: Liquid Glass, frosted glass, sky
@@ -310,7 +318,7 @@ catalogues. Tamil (`ta.json`) is complete for the tvOS features.
 
 ## Privacy
 
-OoruTV talks only to:
+X-OS talks only to:
 
 | Service | For |
 |---|---|
@@ -333,19 +341,22 @@ No analytics, no ads, no account, nothing about what you watch leaves the TV.
 | `adb connect` fails | TV and computer on the same Wi-Fi; ADB/network debugging on; try `adb kill-server` and connect again. |
 | Install hangs | Play Protect is asking on the TV: *More details → Install anyway*. |
 | No picks, only the clock | Add your TMDB key to `config.properties` and build again. |
-| Home button opens the old launcher | Run the switch on the TV: OoruTV → Home Screen → OoruTV. |
+| Home button opens the old launcher | Run the switch on the TV: X-OS → Home Screen → X-OS. |
 | Glass looks flat | Android 8–12 draws the Canvas version; Glass Style must be *Liquid Glass* in Control Center. |
-| Something went wrong | `adb logcat -s OoruTV` shows what the app did. OoruTV → Home Screen → Original restores the TV. |
+| Something went wrong | `adb logcat -s XOS` shows what the app did. X-OS → Home Screen → Original restores the TV. |
 
 ---
 
 ## Roadmap
 
-- More StandBy styles (Depth, Solar, World, your photos) with clock colours
-- Moving apps around inside All Apps and folders
+- More StandBy clocks (World, Digital, Float, Date + Weather, Depth, Solar) and photo screensavers from online sources
+- Settings in a floating sidebar window with search: Wi-Fi, Bluetooth, VPN and ad-blocking DNS, Backup & Restore,
+  TV Debloat, ADB Tools
+- Wallpapers for the top shelf: emoji, gradients, solid colours, your own picture
+- Dynamic Island with favourite apps; news in the top shelf with a reader
 - First-run setup wizard (profile, look, top shelf, weather, default launcher)
-- Continue Watching on the top shelf
-- Remote button remapping and TV notifications
+- Interface sound packs, text size, animation speed; remote button remapping and TV notifications
+- Storage cleaner (large, duplicate and installer files)
 
 ---
 
