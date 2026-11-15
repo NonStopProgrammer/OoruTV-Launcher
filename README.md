@@ -11,6 +11,8 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 | ![Top shelf](docs/screenshots/hero.jpg) | ![Weather panel](docs/screenshots/weather.jpg) | ![Control Center](docs/screenshots/control.jpg) |
 | **All Apps** | **Settings** | **Today** |
 | ![All Apps](docs/screenshots/apps.jpg) | ![Settings](docs/screenshots/settings.jpg) | ![Today](docs/screenshots/today.jpg) |
+| **Top shelf of the focused app** | | |
+| ![YouTube's Continue Watching on the top shelf](docs/screenshots/app-shelf.jpg) | | |
 | **A folder** | **Hold OK: the menu** | **Recent apps (Home twice)** |
 | ![Folder](docs/screenshots/folder.jpg) | ![Hold menu](docs/screenshots/menu.jpg) | ![Recent apps](docs/screenshots/recents.jpg) |
 | **StandBy screensaver** | **Fonts** | |

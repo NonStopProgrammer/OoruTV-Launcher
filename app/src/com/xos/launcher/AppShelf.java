@@ -56,7 +56,7 @@ final class AppShelf {
     private final Map<String, Long> listAt = new HashMap<>();
     private final Set<String> loading = new HashSet<>();
     private final LinkedHashMap<String, Backdrop> images = new LinkedHashMap<>(16, 0.75f, true);
-    private final Set<String> imagePending = new HashSet<>();
+    private final Set<String> imagePending = new HashSet<>(), imageFailed = new HashSet<>();
     private final List<Listener> listeners = new ArrayList<>();
     private long grantTriedAt;
 
@@ -203,7 +203,8 @@ final class AppShelf {
         if (image == null || (number(c, "thumbnail_aspect_ratio") != 0 && poster != null && number(c, "poster_art_aspect_ratio") == 0)) {
             image = poster != null ? poster : image;
         }
-        if (title == null || title.trim().isEmpty() || image == null) return null;
+        // Some apps publish placeholders ("your_poster_url"): only real addresses make a card.
+        if (title == null || title.trim().isEmpty() || !picture(image)) return null;
         Recs.Pick p = new Recs.Pick();
         p.kind = KIND;
         p.pkg = pkg;
@@ -234,6 +235,13 @@ final class AppShelf {
         return p;
     }
 
+    private static boolean picture(String address) {
+        if (address == null) return false;
+        String a = address.toLowerCase(Locale.ROOT);
+        return a.startsWith("http://") || a.startsWith("https://") || a.startsWith("content://")
+                || a.startsWith("android.resource://") || a.startsWith("file://");
+    }
+
     private String appName(String pkg) {
         try {
             PackageManager pm = context.getPackageManager();
@@ -262,7 +270,7 @@ final class AppShelf {
         synchronized (images) {
             Backdrop b = images.get(key);
             if (b != null) return b;
-            if (!imagePending.add(key)) return null;
+            if (imageFailed.contains(key) || !imagePending.add(key)) return null;
         }
         io.execute(() -> {
             try {
@@ -278,6 +286,9 @@ final class AppShelf {
                 });
             } catch (IOException | RuntimeException | OutOfMemoryError e) {
                 AppLog.w("top shelf picture: " + e.getMessage());
+                synchronized (images) {
+                    imageFailed.add(key);   // not again until X-OS restarts
+                }
             } finally {
                 synchronized (images) {
                     imagePending.remove(key);
