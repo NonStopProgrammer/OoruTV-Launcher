@@ -2,6 +2,8 @@ package com.xos.launcher;
 
 /** Damped spring, like macOS animations: response (s) and damping (1 = no bounce). */
 final class Spring {
+    /** Settings › Appearance › Animations: faster (1.6), slower (0.7) or reduced (8: done in a few frames). */
+    static float speed = 1;
     float value, velocity, target;
     private final float response, damping;
 
@@ -18,6 +20,7 @@ final class Spring {
 
     /** Advances `dt` seconds; returns true while still moving. */
     boolean step(float dt) {
+        dt *= speed;
         if (settled()) {
             value = target;
             velocity = 0;

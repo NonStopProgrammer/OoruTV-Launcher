@@ -20,7 +20,10 @@ final class Click {
     private SoundPool pool;
     private int move, open;
 
+    private final android.media.AudioManager audio;
+
     Click(Context c) {
+        audio = (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
         try {
             pool = new SoundPool.Builder().setMaxStreams(3).setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
@@ -34,11 +37,20 @@ final class Click {
     }
 
     void move() {
-        if (pool != null && Prefs.sounds()) pool.play(move, 0.14f, 0.14f, 1, 0, 1f);
+        String mode = Prefs.soundMode();
+        if (mode.equals("tv")) system(android.media.AudioManager.FX_FOCUS_NAVIGATION_RIGHT);
+        else if (pool != null && mode.equals("xos")) pool.play(move, 0.14f, 0.14f, 1, 0, 1f);
     }
 
     void open() {
-        if (pool != null && Prefs.sounds()) pool.play(open, 0.18f, 0.18f, 1, 0, 1f);
+        String mode = Prefs.soundMode();
+        if (mode.equals("tv")) system(android.media.AudioManager.FX_KEY_CLICK);
+        else if (pool != null && mode.equals("xos")) pool.play(open, 0.18f, 0.18f, 1, 0, 1f);
+    }
+
+    /** Settings › Sound › Interface Sounds: TV Sounds, the TV's own (they follow its sound-effects setting). */
+    private void system(int effect) {
+        if (audio != null) audio.playSoundEffect(effect, 0.5f);
     }
 
     void release() {

@@ -190,6 +190,22 @@ Most of it lives on the TV: **X-OS → Home Settings** (language, temperature un
 markets, screensaver style), **Shelf**, **Top Buttons** and **Remote Buttons**, plus **Control Center** for
 Dark Mode, Glass Style and Profile.
 
+**X-OS → More Settings** has everything, page by page:
+
+| Page | What's there |
+|---|---|
+| Appearance | Theme, Liquid or Frosted glass, font, text size, animation speed, folders in a window or full screen |
+| Status Bar & Weather | 12/24-hour clock, the date next to it, temperature unit, weather and markets widgets, city |
+| Top Shelf | Picks for you, the focused app's own content, all Continue Watching, or a wallpaper (Aurora, Sunset, Ocean, Graphite, Emoji) with the big clock; shelf apps |
+| StandBy & Screensaver | Style, StandBy clock (Analog and calendar, Digital, World clock, Floating, Date and weather), preview |
+| Sound | X-OS clicks, the TV's own sounds, or off |
+| Network | Wi-Fi and Bluetooth (the TV's own pages), IP address, the `adb connect` line |
+| Private DNS | Automatic, AdGuard (blocks ads), Cloudflare or Google; Automatic puts Android's own back |
+| Backup & Restore | Settings, shelf, folders and remote buttons to `X-OS/x-os-backup.json` (kept after an uninstall) |
+| TV Debloat | The promo apps X-OS knows, each on or off (turned off, never uninstalled; Original turns them back on) |
+| Storage Cleaner | Free storage and memory, clear the apps' caches, close background apps |
+| About | Version, TV model, Android version, home screen, IP, storage, memory |
+
 ### Apple's SF fonts
 
 SF Pro and SF Rounded are Apple's fonts, and their licence doesn't allow building them into an app, so X-OS
@@ -240,7 +256,8 @@ A watchdog also switches back by itself if the home screen ever crashes three ti
 - Sets X-OS as the home app and screensaver.
 - Turns off (never uninstalls) the stock launcher and a short list of promo/ad apps with `pm disable-user`, so
   *Original* can bring them all back. Apps that saved a Wi-Fi network are never touched.
-- Doesn't change picture, sound, network or account settings.
+- Doesn't change picture, sound, network or account settings, unless you pick a Private DNS in More Settings
+  (Automatic puts Android's own back).
 
 ---
 
@@ -351,14 +368,13 @@ No analytics, no ads, no account, nothing about what you watch leaves the TV.
 
 ## Roadmap
 
-- More StandBy clocks (World, Digital, Float, Date + Weather, Depth, Solar) and photo screensavers from online sources
-- Settings in a floating sidebar window with search: Wi-Fi, Bluetooth, VPN and ad-blocking DNS, Backup & Restore,
-  TV Debloat, ADB Tools
-- Wallpapers for the top shelf: emoji, gradients, solid colours, your own picture
+- More StandBy clocks (Depth, Solar) and photo screensavers from other online sources (NASA, Wikimedia, The Met)
+- Settings search; VPN; more ADB tools
+- Your own picture as the top shelf wallpaper
 - Dynamic Island with favourite apps; news in the top shelf with a reader
 - First-run setup wizard (profile, look, top shelf, weather, default launcher)
-- Interface sound packs, text size, animation speed; remote button remapping and TV notifications
-- Storage cleaner (large, duplicate and installer files)
+- More interface sound packs; TV notifications
+- Storage cleaner for large, duplicate and installer files
 
 ---
 

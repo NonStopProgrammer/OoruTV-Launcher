@@ -14,6 +14,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /**
  * Settings changed on the TV itself (X-OS > Settings). config.properties only gives the first
  * values; anything the user changes here wins. Read from the :home process (home screen, screensaver, settings).
@@ -69,6 +73,11 @@ final class Prefs {
         version++;
     }
 
+    private static void put(String key, float value) {
+        sp().edit().putFloat(key, value).apply();
+        version++;
+    }
+
     // MARK: - Language and units
 
     /** "auto" or a language code as picked ("pt", "fr", "zh-CN"…); Ui.applyLanguage finds its catalogue. */
@@ -106,12 +115,13 @@ final class Prefs {
     }
 
     /**
-     * The top shelf: "app" (the focused app's own content: its Continue Watching and rows, else the picks), "picks"
-     * (only the picks) or "all" (Continue Watching from every app).
+     * The top shelf: "picks" (the default: sharp movie and show pictures), "app" (the focused app's own content: its
+     * Continue Watching and rows, else the picks), "all" (Continue Watching from every app) or "wallpaper" (a still
+     * wallpaper with the big clock).
      */
     static String topShelf() {
-        String v = sp().getString("top_shelf", "app");
-        return v.equals("picks") || v.equals("all") ? v : "app";
+        String v = sp().getString("top_shelf", "picks");
+        return v.equals("app") || v.equals("all") || v.equals("wallpaper") ? v : "picks";
     }
 
     static void setTopShelf(String v) { put("top_shelf", v); }
@@ -162,7 +172,136 @@ final class Prefs {
     }
 
     /** The home screen's soft click when moving and opening. */
-    static boolean sounds() { return sp().getBoolean("sounds", true); }
+    static boolean sounds() { return !soundMode().equals("off"); }
+
+    /** Interface sounds: "xos" (X-OS's soft clicks), "tv" (the TV's own sounds) or "off". */
+    static String soundMode() {
+        String v = sp().getString("sound_mode", null);
+        if (v == null) return sp().getBoolean("sounds", true) ? "xos" : "off";
+        return v.equals("tv") || v.equals("off") ? v : "xos";
+    }
+
+    static void setSoundMode(String v) { put("sound_mode", v); }
+
+    // MARK: - Look and feel (Settings › More Settings)
+
+    /** The clock: "auto" (the language's own), "12" or "24" hours. */
+    static String clockHours() {
+        String v = sp().getString("clock_hours", "auto");
+        return v.equals("12") || v.equals("24") ? v : "auto";
+    }
+
+    static void setClockHours(String v) { put("clock_hours", v); }
+
+    /** The date next to the clock in the status pill. */
+    static boolean clockDate() { return sp().getBoolean("clock_date", false); }
+
+    static void setClockDate(boolean on) { put("clock_date", on); }
+
+    /** Text size: 0.9, 1 (default), 1.1 or 1.2. */
+    static float textSize() {
+        float v = app == null ? 1 : sp().getFloat("text_size", 1);
+        return v < 0.85f || v > 1.25f ? 1 : v;
+    }
+
+    static void setTextSize(float v) { put("text_size", v); }
+
+    /** Animations: "normal", "fast", "slow" or "reduced" (they finish at once). */
+    static String animations() {
+        String v = app == null ? "normal" : sp().getString("animations", "normal");
+        return v.equals("fast") || v.equals("slow") || v.equals("reduced") ? v : "normal";
+    }
+
+    static void setAnimations(String v) { put("animations", v); }
+
+    /** Folders open in a glass "window" or "full" screen. */
+    static String folderStyle() { return sp().getString("folder_style", "window").equals("full") ? "full" : "window"; }
+
+    static void setFolderStyle(String v) { put("folder_style", v); }
+
+    /** StandBy's clock: "analog" (with the month), "world", "digital", "float" or "date" (with the weather). */
+    static String standbyClock() {
+        String v = sp().getString("standby_clock", "analog");
+        return v.equals("world") || v.equals("digital") || v.equals("float") || v.equals("date") ? v : "analog";
+    }
+
+    static void setStandbyClock(String v) { put("standby_clock", v); }
+
+    static final String[] WALLPAPERS = {"aurora", "sunset", "ocean", "graphite", "emoji"};
+
+    /** Top shelf wallpaper (Top Shelf › Wallpaper): one of WALLPAPERS. */
+    static String wallpaper() {
+        String v = sp().getString("wallpaper", "aurora");
+        for (String w : WALLPAPERS) if (w.equals(v)) return v;
+        return "aurora";
+    }
+
+    static void setWallpaper(String v) { put("wallpaper", v); }
+
+    /** The emoji of the emoji wallpaper. */
+    static String wallpaperEmoji() { return sp().getString("wallpaper_emoji", "🐼"); }
+
+    static void setWallpaperEmoji(String v) { put("wallpaper_emoji", v); }
+
+    // MARK: - Backup and restore (Settings › More Settings › Backup & Restore)
+
+    /** Every setting made on the TV and the remote buttons, as JSON: [type, value] per key. */
+    static JSONObject export() throws JSONException {
+        JSONObject values = new JSONObject();
+        for (java.util.Map.Entry<String, ?> e : sp().getAll().entrySet()) {
+            Object v = e.getValue();
+            String type = v instanceof Boolean ? "b" : v instanceof Float ? "f" : v instanceof Integer ? "i"
+                    : v instanceof Long ? "l" : v instanceof String ? "s" : null;
+            if (type != null) values.put(e.getKey(), new JSONArray().put(type).put(String.valueOf(v)));
+        }
+        JSONObject keys = new JSONObject();
+        for (int key : KEYS) keys.put(Integer.toString(key), keyApp(key));
+        return new JSONObject().put("app", "X-OS").put("format", 1).put("at", System.currentTimeMillis())
+                .put("settings", values).put("remoteKeys", keys);
+    }
+
+    /** Puts back what export() saved (keys it doesn't know are kept as they are). Returns how many were restored. */
+    static int restore(JSONObject backup) throws JSONException {
+        if (!"X-OS".equals(backup.optString("app"))) throw new JSONException("not an X-OS backup");
+        JSONObject values = backup.getJSONObject("settings");
+        SharedPreferences.Editor e = sp().edit();
+        int n = 0;
+        for (java.util.Iterator<String> it = values.keys(); it.hasNext(); ) {
+            String key = it.next();
+            JSONArray tv = values.optJSONArray(key);
+            if (tv == null || tv.length() != 2 || key.equals("setup_done")) continue;
+            String type = tv.optString(0), v = tv.optString(1);
+            try {
+                switch (type) {
+                    case "b": e.putBoolean(key, Boolean.parseBoolean(v)); break;
+                    case "f": e.putFloat(key, Float.parseFloat(v)); break;
+                    case "i": e.putInt(key, Integer.parseInt(v)); break;
+                    case "l": e.putLong(key, Long.parseLong(v)); break;
+                    case "s": e.putString(key, v); break;
+                    default: continue;
+                }
+                n++;
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        e.apply();
+        JSONObject keys = backup.optJSONObject("remoteKeys");
+        if (keys != null) {
+            StringBuilder sb = new StringBuilder();
+            for (int key : KEYS) sb.append(key).append('=').append(keys.optString(Integer.toString(key), keyApp(key))).append('\n');
+            writeKeys(sb.toString());
+        }
+        version++;
+        return n;
+    }
+
+    /** First run: the setup pages were seen (an install that already has settings counts as set up). */
+    static boolean setupDone() {
+        if (sp().contains("setup_done")) return sp().getBoolean("setup_done", false);
+        return sp().getAll().size() > 3;
+    }
+
+    static void setSetupDone() { put("setup_done", true); }
     static void setSounds(boolean on) { put("sounds", on); }
 
     // MARK: - Widgets and coins

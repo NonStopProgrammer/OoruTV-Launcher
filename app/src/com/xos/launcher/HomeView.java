@@ -895,7 +895,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         long minute = now / 60_000;
         if (minute == clockMinute || clockPaint == null) return false;
         clockMinute = minute;
-        clockText = Ui.clock(now);
+        clockText = Prefs.clockDate() ? Ui.shortDate(now) + "  " + Ui.clock(now) : Ui.clock(now);
         dateText = Ui.date(now);
         return true;
     }
@@ -1029,6 +1029,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** No photo: the glass reads the background's own gray (not Scene's default aurora, which isn't on screen). */
     private void neutralGlass() {
+        if (wallpaperShelf && wallFrost != null) {
+            useWallpaperGlass();
+            return;
+        }
         int color = blend(0xFFEBEBF0, 0xFF141416, night);
         java.util.Arrays.fill(neutralFrostPx, color);
         java.util.Arrays.fill(neutralGlassPx, color);
@@ -3542,10 +3546,13 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** The hero's picks: Explore's three and, with the YouTube tab on, YouTube's; the photo of the one showing. */
     private void updateTvPicks() {
         String shelfMode = Prefs.topShelf();
+        wallpaperShelf = shelfMode.equals("wallpaper");
         String source = shelfMode.equals("all") ? AppShelf.ALL : shelfMode.equals("app") ? appShelfPkg : null;
         List<Recs.Pick> app = source == null ? null : appShelf.cards(source);
         List<Recs.Pick> list;
-        if (app != null && !app.isEmpty()) {
+        if (wallpaperShelf) {
+            list = new ArrayList<>();   // no picks: the wallpaper with the big clock
+        } else if (app != null && !app.isEmpty()) {
             list = new ArrayList<>(app);
         } else {
             list = new ArrayList<>(recs.now());
@@ -3563,8 +3570,90 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         Backdrop b = backdropOf(p);
         if (picks.size() > 1) backdropOf(picks.get((pickIndex + 1) % picks.size()));   // the next one, ready
         if (p == null || b != null) showBackdrop(b);
+        if (wallpaperShelf) ensureWallpaper();
         refreshHero(true);
         heroDirty = true;
+    }
+
+    // Top Shelf › Wallpaper: a still wallpaper (made once, at half size) behind the big clock.
+    private boolean wallpaperShelf;
+    private Bitmap wallBitmap;
+    private String wallKey = "";
+    private int[] wallFrost, wallGlass;
+    private final Paint wallPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+
+    private void ensureWallpaper() {
+        if (w == 0) return;
+        String key = Prefs.wallpaper() + "|" + Prefs.wallpaperEmoji() + "|" + w + "x" + h;
+        if (key.equals(wallKey) && wallBitmap != null) {
+            useWallpaperGlass();
+            return;
+        }
+        wallKey = key;
+        int bw = Math.max(2, w / 2), bh = Math.max(2, h / 2);
+        Bitmap b = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(b);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        int[] base, glow;
+        switch (Prefs.wallpaper()) {
+            case "sunset": base = new int[] {0xFF1E0B3A, 0xFF5B1E5F, 0xFFC2415B, 0xFFF08A4B}; glow = new int[] {0x99FFC15E, 0x66FF5E7A}; break;
+            case "ocean": base = new int[] {0xFF010A1C, 0xFF04285A, 0xFF07679A, 0xFF22B8C2}; glow = new int[] {0x8040E0D0, 0x661E64FF}; break;
+            case "graphite": base = new int[] {0xFF09090B, 0xFF18181C, 0xFF2C2C32, 0xFF3E3E46}; glow = new int[] {0x40FFFFFF, 0x30A0A0B0}; break;
+            case "emoji": base = new int[] {0xFF14141C, 0xFF1E1A2E, 0xFF2A2140, 0xFF34264E}; glow = new int[] {0x509D7BFF, 0x40FF7BC8}; break;
+            default: base = new int[] {0xFF02110D, 0xFF0A3A33, 0xFF168F72, 0xFF5B3BB0}; glow = new int[] {0x8034F5A0, 0x709A5CFF}; break;
+        }
+        p.setShader(new LinearGradient(0, 0, bw, bh, base, null, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, bw, bh, p);
+        p.setShader(new android.graphics.RadialGradient(bw * 0.78f, bh * 0.22f, bw * 0.55f, glow[0], 0, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, bw, bh, p);
+        p.setShader(new android.graphics.RadialGradient(bw * 0.18f, bh * 0.85f, bw * 0.5f, glow[1], 0, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, bw, bh, p);
+        p.setShader(null);
+        if (Prefs.wallpaper().equals("emoji")) {
+            float size = bh / 8.5f, step = size * 1.7f;
+            p.setTextSize(size);
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setAlpha(150);
+            c.save();
+            c.rotate(-14, bw / 2f, bh / 2f);
+            String e = Prefs.wallpaperEmoji();
+            int row = 0;
+            for (float y = -bh * 0.4f; y < bh * 1.4f; y += step, row++) {
+                for (float x = -bw * 0.4f + (row % 2) * step / 2; x < bw * 1.4f; x += step) c.drawText(e, x, y, p);
+            }
+            c.restore();
+            p.setAlpha(255);
+        }
+        // Darker toward the bottom, where the shelf and its labels sit.
+        p.setShader(new LinearGradient(0, bh * 0.45f, 0, bh, 0x00000000, 0x8C000000, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, bw, bh, p);
+        Bitmap old = wallBitmap;
+        wallBitmap = b;
+        if (old != null) old.recycle();
+        // The glass shows the wallpaper, softened (as it does a photo).
+        Bitmap small = Bitmap.createScaledBitmap(b, Backdrop.FW / 4, Backdrop.FH / 4, true);
+        Bitmap frost = Bitmap.createScaledBitmap(small, Backdrop.FW, Backdrop.FH, true);
+        small.recycle();
+        wallFrost = new int[Backdrop.FW * Backdrop.FH];
+        frost.getPixels(wallFrost, 0, Backdrop.FW, 0, 0, Backdrop.FW, Backdrop.FH);
+        frost.recycle();
+        Bitmap half = Bitmap.createScaledBitmap(b, Backdrop.GW / 4, Backdrop.GH / 4, true);
+        Bitmap soft = Bitmap.createScaledBitmap(half, Backdrop.GW, Backdrop.GH, true);
+        half.recycle();
+        wallGlass = new int[Backdrop.GW * Backdrop.GH];
+        soft.getPixels(wallGlass, 0, Backdrop.GW, 0, 0, Backdrop.GW, Backdrop.GH);
+        soft.recycle();
+        useWallpaperGlass();
+        sky.invalidate();
+    }
+
+    private void useWallpaperGlass() {
+        if (wallFrost == null || wallGlass == null) return;
+        scene.setFrost(wallFrost);
+        scene.setGlassImage(wallGlass);
+        nightPair = false;
+        heroDirty = statusDirty = tilesDirty = drawerDirty = true;
+        platter.invalidate();
     }
 
     /** The top shelf moves on by itself (not while you are on it, or with something open over it). */
@@ -3581,6 +3670,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** The photo full screen (cross-fading to the next); without one, gray to black. Darker at night or with the drawer. */
     private void drawTvSky(Canvas c) {
+        if (wallpaperShelf && wallBitmap != null && !wallBitmap.isRecycled()) {
+            c.drawBitmap(wallBitmap, null, screen, wallPaint);
+            float veil = Math.min(0.7f, 0.3f * night + 0.5f * Ui.clamp(drawer.value));
+            if (veil > 0.004f) {
+                fill.setShader(null);
+                fill.setColor(Ui.alpha(0xFF000000, veil));
+                c.drawRect(screen, fill);
+            }
+            return;
+        }
         long up = SystemClock.uptimeMillis();
         float e = bgFadeAt == 0 ? 1 : fadeEase(bgFadeAt, up);
         boolean fading = bgFadeAt != 0;
@@ -4312,7 +4411,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final float RECENT_W = 600, RECENT_H = 338, RECENT_STEP = 700;
     private static final long CLOSING_MS = 380;
     private HomeApps.Item folderItem;
-    private int folderIndex, folderCols = FOLDER_COLS;
+    private int folderIndex, folderCols = FOLDER_COLS, folderRowsMax = FOLDER_ROWS;
     private Spring[] folderFocus = new Spring[0];
     private final Spring folderScroll = new Spring(0.3f, 0.9f, 0);
     private final RectF folderPanel = new RectF(), folderFocused = new RectF();
@@ -4393,8 +4492,17 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void layoutFolder() {
         int n = folderItem == null ? 0 : folderItem.apps.size();
+        if (Prefs.folderStyle().equals("full")) {
+            // Full screen (More Settings › Folders open): as many columns and rows as the screen holds.
+            int fit = (int) ((w / k - 2 * 60 - 2 * 56 + GRID_GAP) / (GRID_W + GRID_GAP));
+            folderCols = Math.max(3, Math.min(fit, Math.max(3, n)));
+            folderPanel.set(60 * k, 170 * k, w - 60 * k, h - 60 * k);
+            folderRowsMax = Math.max(1, (int) ((folderPanel.height() / k - 48) / GRID_ROW));
+            return;
+        }
+        folderRowsMax = FOLDER_ROWS;
         folderCols = Math.max(3, Math.min(FOLDER_COLS, n));
-        int rows = Math.max(1, (n + folderCols - 1) / folderCols), visible = Math.min(rows, FOLDER_ROWS);
+        int rows = Math.max(1, (n + folderCols - 1) / folderCols), visible = Math.min(rows, folderRowsMax);
         float pw = (folderCols * GRID_W + (folderCols - 1) * GRID_GAP + 2 * 56) * k, ph = (48 + visible * GRID_ROW) * k;
         float top = (h - ph) / 2 + 44 * k;
         folderPanel.set((w - pw) / 2, top, (w + pw) / 2, top + ph);
@@ -4415,7 +4523,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (next == folderIndex) return;
         folderIndex = next;
         aim(folderFocus, folderIndex, false);
-        int nr = folderIndex / cols, visible = Math.min(rows, FOLDER_ROWS);
+        int nr = folderIndex / cols, visible = Math.min(rows, folderRowsMax);
         float t = folderScroll.target;
         if (nr < t) t = nr;
         else if (nr > t + visible - 1) t = nr - visible + 1;
@@ -4443,7 +4551,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         c.save();
         c.clipRect(folderPanel.left, folderPanel.top + 6 * k, folderPanel.right, folderPanel.bottom - 6 * k);
         int n = folderItem.apps.size(), cols = folderCols;
-        float left = folderPanel.left + 56 * k, top0 = folderPanel.top + 32 * k - folderScroll.value * GRID_ROW * k;
+        float gridW = (cols * GRID_W + (cols - 1) * GRID_GAP) * k;
+        float left = folderPanel.centerX() - gridW / 2, top0 = folderPanel.top + 32 * k - folderScroll.value * GRID_ROW * k;
         for (int i = 0; i < n && i < folderFocus.length; i++) {
             float x = left + (i % cols) * (GRID_W + GRID_GAP) * k, y = top0 + (i / cols) * GRID_ROW * k;
             if (y > h || y + GRID_ROW * k < 0) continue;

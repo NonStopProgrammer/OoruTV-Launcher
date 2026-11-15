@@ -125,6 +125,8 @@ def java_calls():
 
 
 def web_calls():
+    if not os.path.isdir(WEB):   # this repo has no web app
+        return
     for name in sorted(os.listdir(WEB)):
         if not name.endswith(".js") or name == "strings.js":   # strings.js is where the calls are made, not used
             continue

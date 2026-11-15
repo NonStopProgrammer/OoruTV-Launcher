@@ -44,6 +44,8 @@ final class AppShelf {
     /** Not an app: Continue Watching from every app (Settings › Top Shelf › All Continue Watching). */
     static final String ALL = "*";
     private static final int MAX = 10, IMAGES = 6;
+    /** A picture fills the whole screen: smaller ones (YouTube's 480 px thumbnails) look soft and are left out. */
+    private static final int MIN_WIDTH = 1200;
     private static final long FRESH_MS = 5 * 60_000L, RETRY_MS = 60_000L;
     static final String[] PERMISSIONS = {"android.permission.READ_TV_LISTINGS",
             "com.android.providers.tv.permission.READ_EPG_DATA"};
@@ -274,8 +276,23 @@ final class AppShelf {
         }
         io.execute(() -> {
             try {
-                Bitmap bitmap = decode(key);
-                if (bitmap == null) return;
+                Bitmap bitmap = null;
+                String hd = youtubeHd(key);
+                if (hd != null) {
+                    try {
+                        bitmap = decode(hd);
+                    } catch (IOException e) {
+                        bitmap = null;   // no HD copy of this video's picture
+                    }
+                }
+                if (bitmap == null) bitmap = decode(key);
+                if (bitmap == null) throw new IOException("unreadable picture");
+                if (bitmap.getWidth() < MIN_WIDTH) {
+                    int width = bitmap.getWidth();
+                    bitmap.recycle();
+                    drop(key);
+                    throw new IOException("too small for the whole screen: " + width + " px");
+                }
                 Backdrop b = Backdrop.make(bitmap, false);
                 synchronized (images) {
                     images.put(key, b);
@@ -296,6 +313,32 @@ final class AppShelf {
             }
         });
         return null;
+    }
+
+    /** YouTube's thumbnails come small (hqdefault: 480 px); most videos also have a 1280 px one. */
+    private static String youtubeHd(String address) {
+        if (!address.contains("ytimg.com/vi")) return null;
+        String hd = address.replaceAll("/(hq|mq|sd)?default(_live)?\\.(jpg|webp)", "/maxresdefault.jpg");
+        return hd.equals(address) ? null : hd;
+    }
+
+    /** A card whose picture can't fill the screen leaves the top shelf (the app's other cards stay). */
+    private void drop(String picture) {
+        String owner = null;
+        synchronized (lists) {
+            for (Map.Entry<String, List<Recs.Pick>> e : lists.entrySet()) {
+                List<Recs.Pick> kept = new ArrayList<>();
+                for (Recs.Pick p : e.getValue()) {
+                    if (picture.equals(p.backdrop)) owner = e.getKey();
+                    else kept.add(p);
+                }
+                e.setValue(kept);
+            }
+        }
+        final String pkg = owner;
+        if (pkg != null) main.post(() -> {
+            for (Listener l : new ArrayList<>(listeners)) l.onAppShelf(pkg);
+        });
     }
 
     /** Pictures come as web addresses or as the app's own content (content:, android.resource:, file:). */

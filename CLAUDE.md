@@ -51,8 +51,12 @@ before you do it, and let them do the taps on the TV.
   Profile: `overlay`). The older card layout (`drawLightTop`) is no longer offered.
 - All Apps (`drawSheet`, `drawCard`): a Liquid Glass box with glossy tiles. Settings (`SettingsActivity`): tvOS split
   view, `drawBackdrop` (today's photo + glass window) and `drawSidebar` (profile card, sections); the main menu is the
-  sidebar. Screens for screenshots: `am start -n com.xos.launcher/.HomeActivity --es show apps|control|weather|today|recents|folder|menu`; StandBy:
+  sidebar. Screens for screenshots: `am start -n com.xos.launcher/.HomeActivity --es show apps|control|weather|today|recents|folder|menu`;
+  Settings pages: `am start -n com.xos.launcher/.SettingsActivity --es open home|font|more|more1…more11`; StandBy:
   `am start -n com.xos.launcher/.SettingsActivity --ez screensaver true --es saver standby`.
+- More Settings (`OPTIONS`, pages `P_LOOK`…`P_ABOUT`, rows built by `opts()`): offer only what works. Jobs that need
+  the TV's shell (Private DNS, Backup copy, TV Debloat, caches) run through `work()` off the UI thread. TV Debloat only
+  lists `HomeMode.DEBLOAT` and goes through `HomeMode.setAppOff` (record + `keptOn`), never anything else.
 - Glass: `Scene.liquid` (Liquid Glass) and `Scene.glass` (frosted). Android 13+ uses `Shaders.LIQUID`/`GLASS`; 8–12 use
   `oldGlass` + `lens` (refraction by a magnified rim). `Scene.frosted` (Glass Style) turns refraction off.
 - Fonts: `Fonts.load` fills `Ui.thin`…`Ui.semibold` from the pick (`Prefs.font()`). Never add Apple's SF files to the
@@ -64,7 +68,8 @@ before you do it, and let them do the taps on the TV.
 - Folders (`Prefs.folders`, `HomeApps.FOLDER`), the hold menu (dock, All Apps and folders: `openMenu(MENU_*)`), custom
   icons (`OVERLAY_ICONS`, `HomeApps.setCustomIcon`) and the recent apps switcher (`Recents`, Home twice)
   are overlays on the control layer (`OVERLAY_FOLDER`, `OVERLAY_MENU`, `OVERLAY_RECENTS`). StandBy is `StandBy`,
-  drawn by `DreamView` when the screensaver style is `standby`.
+  drawn by `DreamView` when the screensaver style is `standby` (faces: `Prefs.standbyClock()`). Top Shelf › Wallpaper
+  (`ensureWallpaper`) draws a still wallpaper with the big clock; folders can open full screen (`Prefs.folderStyle()`).
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals
   `Ui.plural(...)`. After changing text run `python3 tools/translate.py` and fill the missing keys.
 - Settings from `config.properties` → generated `out/gen/com/xos/launcher/Config.java` (never edit that). What the person

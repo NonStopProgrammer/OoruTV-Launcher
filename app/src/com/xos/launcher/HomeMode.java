@@ -149,7 +149,7 @@ final class HomeMode {
     private static final Pattern FACTORY = Pattern.compile("(.*\\.)?(factory|factorymenu|facmenu|fac|hkcfac|testpq)(\\..*)?");
 
     /** Checked before every disable: never the protected list, Android's own pieces or a factory menu. */
-    private static boolean mayTurnOff(String pkg) {
+    static boolean mayTurnOff(String pkg) {
         return !PROTECTED.contains(pkg) && !CORE.matcher(pkg).matches() && !FACTORY.matcher(pkg).matches();
     }
 
@@ -318,6 +318,7 @@ final class HomeMode {
             Set<String> disabled = new HashSet<>(stringList(state(c), "disabled"));
             Set<String> present = packages(adb, "");
             Set<String> keptOff = new HashSet<>(stringList(state(c), "keptOff"));
+            Set<String> keptOn = new HashSet<>(stringList(state(c), "keptOn"));   // turned back on in TV Debloat
             // Off now and not on our list: the person turned it off, unless an earlier install of X-OS did (its
             // list lives in the TV's settings too, since an uninstall erases our state file).
             Set<String> ours = recorded(adb);
@@ -341,7 +342,8 @@ final class HomeMode {
             for (String pkg : targets) {
                 done++;
                 busy(c, Ui.trf("Turning off apps ({done}/{total})…", "done", done, "total", targets.size()));
-                if (!candidates.contains(pkg) || needed.contains(pkg) || owners.contains(pkg) || keptOff.contains(pkg)) continue;
+                if (!candidates.contains(pkg) || needed.contains(pkg) || owners.contains(pkg) || keptOff.contains(pkg)
+                        || keptOn.contains(pkg)) continue;
                 // The TV's home screen only once Google TV's setup app is off: its recovery screen would take Home.
                 if (pkg.equals(homePkg) && setupOn) {
                     AppLog.w("kept the TV's home screen on: Google TV's setup app is still on");
@@ -598,7 +600,8 @@ final class HomeMode {
                 boolean setupOn = present.contains(GOOGLE_SETUP) && !disabledNow.contains(GOOGLE_SETUP)
                         && s.optBoolean("setupHome", true);
                 for (String pkg : order) {
-                    if (!mayTurnOff(pkg) || !present.contains(pkg) || owners.contains(pkg) || wait.contains(pkg)) continue;
+                    if (!mayTurnOff(pkg) || !present.contains(pkg) || owners.contains(pkg) || wait.contains(pkg)
+                            || stringList(s, "keptOn").contains(pkg)) continue;
                     if (disabledNow.contains(pkg)) {
                         if (!keptOff.contains(pkg)) disabled.add(pkg);
                         continue;
@@ -696,7 +699,7 @@ final class HomeMode {
      * Apps that saved a Wi-Fi network ("cname" in the Wi-Fi service's list of saved networks), or null when the Wi-Fi
      * service didn't answer (some firmware turns its dumps off): then nobody can tell.
      */
-    private static Set<String> wifiOwners(Adb adb) throws IOException {
+    static Set<String> wifiOwners(Adb adb) throws IOException {
         String out = adb.shell("dumpsys wifi | grep -o -E 'cname=[^ ]*|^Wi-Fi is [a-z]+'");
         if (!out.contains("cname=") && !out.contains("Wi-Fi is")) return null;
         Set<String> owners = new HashSet<>();
@@ -929,6 +932,57 @@ final class HomeMode {
      * What X-OS turned off, kept in the TV's own settings too: an uninstall or Clear data erases our state file,
      * and a new install must still tell its own work from what the person had turned off (#142).
      */
+    // MARK: - TV Debloat (Settings › More Settings): the promo apps, one at a time
+
+    /** The promo apps (DEBLOAT) this TV has: [package, "on" or "off"]. Read through the TV's own ADB. */
+    static List<String[]> debloatList(Context c) throws IOException {
+        try (Adb adb = Adb.connect(c, 30_000, null)) {
+            Set<String> all = packages(adb, ""), off = packages(adb, "-d");
+            List<String[]> out = new ArrayList<>();
+            for (String pkg : DEBLOAT) if (all.contains(pkg)) out.add(new String[] {pkg, off.contains(pkg) ? "off" : "on"});
+            return out;
+        }
+    }
+
+    /**
+     * Turns one promo app off (pm disable-user, never uninstalled) or back on. Kept in the record Original uses to give
+     * everything back; one turned back on stays on in X-OS mode too ("keptOn"). Returns "" or what went wrong.
+     */
+    static String setAppOff(Context c, String pkg, boolean off) {
+        if (!Arrays.asList(DEBLOAT).contains(pkg) || !mayTurnOff(pkg)) return Ui.tr("X-OS doesn't turn that app off.");
+        synchronized (RUN) {
+            try (Adb adb = Adb.connect(c, 30_000, null)) {
+                JSONObject s = state(c);
+                Set<String> disabled = new HashSet<>(stringList(s, "disabled"));
+                Set<String> keptOn = new HashSet<>(stringList(s, "keptOn"));
+                Set<String> ours = recorded(adb);
+                if (off) {
+                    Set<String> owners = wifiOwners(adb);
+                    if (owners == null) return Ui.tr("I couldn't check which app saved the Wi-Fi, so nothing changed. Try again in a minute.");
+                    if (owners.contains(pkg)) return Ui.tr("That app saved a Wi-Fi network: turning it off would erase it.");
+                    String out = adb.shell("pm disable-user --user 0 " + pkg);
+                    if (!out.contains("disabled-user")) return out.trim();
+                    disabled.add(pkg);
+                    ours.add(pkg);
+                    keptOn.remove(pkg);
+                } else {
+                    String out = adb.shell("pm enable " + pkg);
+                    if (!out.contains("enabled")) return out.trim();
+                    disabled.remove(pkg);
+                    ours.remove(pkg);
+                    keptOn.add(pkg);
+                }
+                record(adb, ours);
+                JSONObject now = state(c);
+                now.put("disabled", new JSONArray(sorted(disabled))).put("keptOn", new JSONArray(sorted(keptOn)));
+                save(c, now);
+                return "";
+            } catch (Exception e) {
+                return e.getMessage() == null ? e.toString() : e.getMessage();
+            }
+        }
+    }
+
     // The name stays from earlier versions (Free My TV, OoruTV): X-OS can still give back what one of them turned off.
     private static final String RECORD = "free_my_tv_disabled";
 

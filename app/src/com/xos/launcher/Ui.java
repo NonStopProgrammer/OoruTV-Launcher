@@ -54,7 +54,13 @@ final class Ui {
     private static final RectF OVAL = new RectF();
 
     /** Loads the font picked in the settings (again only when it changed: screens made before then make new paints). */
+    /** Settings › Appearance › Text Size: every paint made by text() is this much larger. */
+    static float textScale = 1;
+
     static synchronized void init(Context c) {
+        textScale = Prefs.textSize();
+        String anim = Prefs.animations();
+        Spring.speed = anim.equals("fast") ? 1.6f : anim.equals("slow") ? 0.7f : anim.equals("reduced") ? 8f : 1f;
         String want = Prefs.font();
         if (want.equals(font)) return;
         font = want;
@@ -268,7 +274,7 @@ final class Ui {
     static Paint text(Typeface face, float size, int color) {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         p.setTypeface(face);
-        p.setTextSize(size);
+        p.setTextSize(size * textScale);
         p.setColor(color);
         return p;
     }
@@ -371,7 +377,11 @@ final class Ui {
     }
 
     /** "21:47" (in English, "9:47", like the iPhone in the US). */
+    /** The clock: 12 or 24 hours as set (Settings › Status Bar), else the language's own. */
     static String clock(long now) {
+        String hours = Prefs.clockHours();
+        if (hours.equals("24")) return datePattern("format|HH:mm").format(now);
+        if (hours.equals("12")) return datePattern("format|h:mm").format(now);
         return Ui.datePattern("format|h:mm").format(now);
     }
 
@@ -402,6 +412,11 @@ final class Ui {
     /** "domingo, 18 de outubro" (lowercase, like the iPhone in Portuguese); "Sunday, October 18" in English; "Sonntag, 18. Oktober". */
     static String date(long now) {
         return Ui.datePattern("format|EEEE, MMMM d").format(now);
+    }
+
+    /** "Sun 15": the date next to the clock (Settings › Status Bar › Date). */
+    static String shortDate(long now) {
+        return Ui.datePattern("format|EEE d").format(now);
     }
 
     /** Spinning arc (work in progress). */

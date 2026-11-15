@@ -263,6 +263,7 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
         h = height;
         k = w / 1920f;
         standBy.setSize(w, h);
+        standBy.setData(getContext(), data);
         scene.setSize(w, h);
         content.setPosition(0, 0, w, h);
         chrome.setPosition(0, 0, w, h);

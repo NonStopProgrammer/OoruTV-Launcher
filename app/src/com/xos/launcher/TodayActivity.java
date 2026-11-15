@@ -80,6 +80,7 @@ public class TodayActivity extends Activity {
         private TextPaint kuralPaint, englishPaint;
         private StaticLayout kuralLayout, englishLayout;
         private Bitmap photo;
+        private static final boolean PHOTO_BACKDROP = false;
         private long photoAt;           // when the photo arrived: it fades in over the dark background
         private android.graphics.Shader dark;
         private int w, h, index;
@@ -211,6 +212,8 @@ public class TodayActivity extends Activity {
 
         /** Today's scenery photo (the newest), darkened a little for the text, and its blurred copy for the glass. */
         private void loadPhoto() {
+            // Black, as before: the screensaver's photo stays on the screensaver (the glass shows the dark gradient).
+            if (!PHOTO_BACKDROP) return;
             if (w == 0) return;
             List<Recs.Pick> photos = Scenery.get(context).photos();
             if (photos.isEmpty()) return;
