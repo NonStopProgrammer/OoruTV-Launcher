@@ -130,7 +130,7 @@ else "${JAVA_HOME:+$JAVA_HOME/bin/}jar" -u -M -f out/base.apk -C out classes.dex
 
 # --- Sign with your own key (created once; updates need the same key, so keep it safe).
 # config.properties can point to an existing key: keystore=, key_alias=, key_password=.
-KS="$(prop keystore xos.keystore)"; ALIAS="$(prop key_alias xos)"; KPASS="$(prop key_password xos)"
+KS="$(prop keystore xos.keystore)"; ALIAS="$(prop key_alias xos)"; KPASS="$(prop key_password xoslauncher)"
 if [ ! -f "$KS" ]; then
   "$KEYTOOL" -genkeypair -keystore "$KS" -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 20000 \
     -storepass "$KPASS" -keypass "$KPASS" -dname "CN=X-OS" >/dev/null 2>&1
