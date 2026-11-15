@@ -64,12 +64,17 @@ before you do it, and let them do the taps on the TV.
   the installer from a `fonts` folder (gitignored).
 - The focused app's top shelf: `AppShelf` reads Android TV's Watch Next and preview programs (READ_TV_LISTINGS +
   READ_EPG_DATA, granted by the installer or the TV's own ADB) and turns them into `Recs.Pick`s the hero shows
-  (`aimAppShelf`, `backdropOf`). `Prefs.topShelf()`: `app`, `picks` or `all`.
+  (`aimAppShelf`, `backdropOf`). `Prefs.topShelf()`: `picks`, `app`, `all`, `news` or `wallpaper`.
 - Folders (`Prefs.folders`, `HomeApps.FOLDER`), the hold menu (dock, All Apps and folders: `openMenu(MENU_*)`), custom
   icons (`OVERLAY_ICONS`, `HomeApps.setCustomIcon`) and the recent apps switcher (`Recents`, Home twice)
   are overlays on the control layer (`OVERLAY_FOLDER`, `OVERLAY_MENU`, `OVERLAY_RECENTS`). StandBy is `StandBy`,
   drawn by `DreamView` when the screensaver style is `standby` (faces: `Prefs.standbyClock()`). Top Shelf › Wallpaper
-  (`ensureWallpaper`) draws a still wallpaper with the big clock; folders can open full screen (`Prefs.folderStyle()`).
+  (`ensureWallpaper`) draws a still wallpaper with the big clock, and Top Shelf › News (`News`, Google News RSS) puts
+  headlines on it; folders can open full screen (`Prefs.folderStyle()`). The Dynamic Island (`withIsland`,
+  `drawIsland`) puts the first shelf apps in the status row. Screensaver photos: `Scenery` (Bing, NASA, Wikimedia;
+  `Prefs.photoSource()`). First run: the setup page (`P_SETUP`) until `Prefs.setupDone()`.
+  For screenshots without saving anything: HomeActivity `--es shelf news|wallpaper --ez island true`, and the
+  StandBy preview `--es face digital|world|float|date`.
 - Text: `Ui.tr("English")` from `app/assets/i18n/<lang>.json`; patterns `Ui.trf("{n} min ago", "n", 12)`; plurals
   `Ui.plural(...)`. After changing text run `python3 tools/translate.py` and fill the missing keys.
 - Settings from `config.properties` → generated `out/gen/com/xos/launcher/Config.java` (never edit that). What the person

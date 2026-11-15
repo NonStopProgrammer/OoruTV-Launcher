@@ -31,7 +31,9 @@ import java.util.concurrent.Executors;
  * Scenery for the screensaver, like the Windows lock screen: Bing's photo of the day (the same daily photos Windows
  * and Bing show), the last 15 days of it, kept on the TV (the newest 30), so the screensaver has them offline too.
  * The list is fetched at most every 12 hours and only while the screensaver runs, then the photos one at a time in the
- * background. Only www.bing.com is contacted (no key, no account, nothing sent but the request). The photos go to the
+ * background. Only the chosen source is contacted (no key, no account, nothing sent but the request): www.bing.com, or
+ * (More Settings › StandBy & Screensaver › Photos) NASA's picture of the day (api.nasa.gov) or Wikipedia's
+ * (api.wikimedia.org, upload.wikimedia.org). The photos go to the
  * screensaver as picks of kind KIND: the place as the title, the photographer's credit as the line below, and Bing's
  * headline above. Home Settings > Screensaver photos picks scenery, the picks' photos, or both.
  */
@@ -50,6 +52,7 @@ final class Scenery {
     private volatile JSONArray saved = new JSONArray();     // the same photos as saved in index.json
     private volatile boolean fetching;
     private volatile long fetchedAt, failedAt;
+    private volatile String fetchedSource = "bing";   // the source of the photos on disk (Prefs.photoSource)
 
     static synchronized Scenery get(Context c) {
         if (instance == null) instance = new Scenery(c.getApplicationContext());
@@ -63,6 +66,7 @@ final class Scenery {
             try {
                 JSONObject saved = new JSONObject(read(index));
                 fetchedAt = saved.optLong("fetchedAt");
+                fetchedSource = saved.optString("source", "bing");
                 publish(saved.optJSONArray("photos"));
             } catch (Exception ignored) {   // nothing saved yet
             }
@@ -90,7 +94,8 @@ final class Scenery {
     /** Fetches the list (and the photos not on disk yet) if it's older than 12 hours. */
     void refreshIfStale() {
         long now = System.currentTimeMillis();
-        if (fetching || (now - fetchedAt >= 0 && now - fetchedAt < EVERY) || (now - failedAt >= 0 && now - failedAt < RETRY)) return;
+        boolean other = !Prefs.photoSource().equals(fetchedSource);   // another source picked: read it now
+        if (fetching || (!other && ((now - fetchedAt >= 0 && now - fetchedAt < EVERY) || (now - failedAt >= 0 && now - failedAt < RETRY)))) return;
         fetching = true;
         worker.execute(() -> {
             try {
@@ -107,23 +112,19 @@ final class Scenery {
         });
     }
 
-    // MARK: - Bing
+    // MARK: - Sources
 
     private void fetch() throws Exception {
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no folder for the photos");
-        JSONArray known = savedPhotos();
-        Set<String> have = new HashSet<>();
-        for (int i = 0; i < known.length(); i++) have.add(known.getJSONObject(i).optString("file"));
-        List<JSONObject> found = new ArrayList<>();
-        // Bing answers 8 days at a time, back to 15 days ago (idx 8 gives the 7 before).
-        for (int idx : new int[] {0, 8}) {
-            JSONArray images = new JSONObject(text(HOST + "/HPImageArchive.aspx?format=js&n=8&idx=" + idx + "&mkt=" + market()))
-                    .optJSONArray("images");
-            for (int i = 0; images != null && i < images.length(); i++) {
-                JSONObject photo = entry(images.getJSONObject(i));
-                if (photo != null) found.add(photo);
-            }
+        String source = Prefs.photoSource();
+        // Only this source's photos are kept (the others' files go with the clean-up below).
+        JSONArray all0 = !source.equals(fetchedSource) ? new JSONArray() : savedPhotos(), known = new JSONArray();
+        for (int i = 0; i < all0.length(); i++) {
+            JSONObject o = all0.getJSONObject(i);
+            if (o.optString("src", "bing").equals(source)) known.put(o);
         }
+        List<JSONObject> found = source.equals("nasa") ? nasa() : source.equals("wikimedia") ? wikimedia() : bing();
+        fetchedSource = source;
         // Newest first, the ones already on disk kept with them; then download what is missing, publishing each one.
         List<JSONObject> all = new ArrayList<>(found);
         Set<String> names = new HashSet<>();
@@ -140,7 +141,8 @@ final class Scenery {
             File f = new File(dir, name);
             if (!f.isFile()) {
                 try {
-                    download(HOST + o.getString("url"), f);
+                    String url = o.getString("url");
+                    download(url.startsWith("http") ? url : HOST + url, f);
                 } catch (Exception e) {
                     AppLog.w("scenery: photo " + name + ": " + e.getMessage());
                     continue;
@@ -156,6 +158,84 @@ final class Scenery {
         File[] files = dir.listFiles();
         if (files != null) for (File f : files) if (!keep.contains(f.getName())) f.delete();
         publish(kept);
+    }
+
+    /** Bing's photo of the day: 8 days at a time, back to 15 days ago (idx 8 gives the 7 before). */
+    private static List<JSONObject> bing() throws Exception {
+        List<JSONObject> found = new ArrayList<>();
+        for (int idx : new int[] {0, 8}) {
+            JSONArray images = new JSONObject(text(HOST + "/HPImageArchive.aspx?format=js&n=8&idx=" + idx + "&mkt=" + market()))
+                    .optJSONArray("images");
+            for (int i = 0; images != null && i < images.length(); i++) {
+                JSONObject photo = entry(images.getJSONObject(i));
+                if (photo != null) found.add(photo);
+            }
+        }
+        return found;
+    }
+
+    private static String day(long at, String pattern) {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(pattern, java.util.Locale.US);
+        f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return f.format(new java.util.Date(at));
+    }
+
+    /** NASA's Astronomy Picture of the Day, the last 20 days (pictures only, not the videos). DEMO_KEY: no account. */
+    private static List<JSONObject> nasa() throws Exception {
+        List<JSONObject> found = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        JSONArray days = new JSONArray(text("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&start_date="
+                + day(now - 20 * 86_400_000L, "yyyy-MM-dd")));
+        for (int i = 0; i < days.length(); i++) {
+            JSONObject d = days.getJSONObject(i);
+            if (!"image".equals(d.optString("media_type"))) continue;
+            String url = d.optString("hdurl", d.optString("url"));
+            String date = d.optString("date");
+            if (!url.startsWith("https://") || !date.matches("\\d{4}-\\d{2}-\\d{2}")) continue;
+            String ext = url.toLowerCase(java.util.Locale.ROOT).endsWith(".png") ? ".png" : ".jpg";
+            String credit = d.optString("copyright").replaceAll("\\s+", " ").trim();
+            found.add(new JSONObject().put("file", "nasa-" + date + ext).put("url", url).put("date", date.replace("-", ""))
+                    .put("place", d.optString("title").trim()).put("credit", credit.isEmpty() ? "NASA" : credit + " · NASA APOD")
+                    .put("headline", "NASA").put("src", "nasa"));
+        }
+        return found;
+    }
+
+    /** Wikipedia's picture of the day (Wikimedia Commons), the last 15 days, wide pictures only. */
+    private static List<JSONObject> wikimedia() throws Exception {
+        List<JSONObject> found = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        for (int back = 0; back < 15; back++) {
+            long at = now - back * 86_400_000L;
+            JSONObject img;
+            try {
+                img = new JSONObject(text("https://api.wikimedia.org/feed/v1/wikipedia/en/featured/" + day(at, "yyyy/MM/dd")))
+                        .optJSONObject("image");
+            } catch (Exception e) {
+                AppLog.w("scenery: wikimedia " + day(at, "yyyy-MM-dd") + ": " + e.getMessage());
+                continue;
+            }
+            if (img == null) continue;
+            JSONObject full = img.optJSONObject("image"), thumb = img.optJSONObject("thumbnail");
+            if (full == null) continue;
+            int width = full.optInt("width"), height = full.optInt("height");
+            if (width < 1280 || width < height * 1.2) continue;   // portraits would be cropped to a strip
+            String url = full.optString("source");
+            if (width > 2400 && thumb != null && thumb.optString("source").matches(".*/\\d+px-[^/]+$")) {
+                url = thumb.optString("source").replaceAll("/\\d+px-([^/]+)$", "/1920px-$1");
+            }
+            if (!url.startsWith("https://")) continue;
+            JSONObject desc = img.optJSONObject("description"), artist = img.optJSONObject("artist");
+            String place = desc == null ? "" : desc.optString("text").replaceAll("\\s+", " ").trim();
+            if (place.length() > 90) place = place.substring(0, 87).trim() + "…";
+            String credit = artist == null ? "" : artist.optString("text").replaceAll("\\s+", " ").trim();
+            String ext = url.toLowerCase(java.util.Locale.ROOT).endsWith(".png") ? ".png" : ".jpg";
+            String date = day(at, "yyyyMMdd");
+            found.add(new JSONObject().put("file", "wiki-" + date + ext).put("url", url).put("date", date)
+                    .put("place", place).put("credit", credit.isEmpty() ? "Wikimedia Commons" : credit + " · Wikimedia Commons")
+                    .put("headline", "").put("src", "wikimedia"));
+        }
+        return found;
     }
 
     /** One of Bing's images as we keep it, or null if it lacks what we need. */
@@ -201,7 +281,8 @@ final class Scenery {
         JSONArray list = saved;
         File tmp = new File(dir, index.getName() + ".tmp");
         try (OutputStream out = new FileOutputStream(tmp)) {
-            out.write(new JSONObject().put("fetchedAt", fetchedAt).put("photos", list).toString().getBytes(StandardCharsets.UTF_8));
+            out.write(new JSONObject().put("fetchedAt", fetchedAt).put("source", fetchedSource).put("photos", list)
+                    .toString().getBytes(StandardCharsets.UTF_8));
         }
         if (!tmp.renameTo(index)) throw new IOException("couldn't save the list");
     }
@@ -251,7 +332,7 @@ final class Scenery {
         File tmp = new File(to.getPath() + ".part");
         HttpURLConnection c = open(url);
         try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
-            copy(in, out, 8 << 20);
+            copy(in, out, 24 << 20);   // NASA's full-size pictures can be large (decoded at screen size)
         } finally {
             c.disconnect();
         }
@@ -272,7 +353,7 @@ final class Scenery {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(10_000);
         c.setReadTimeout(20_000);
-        c.setRequestProperty("User-Agent", "X-OS");
+        c.setRequestProperty("User-Agent", "X-OS-Launcher/2.0 (https://github.com/NonStopProgrammer/X-OS-TV-Launcher)");
         int code = c.getResponseCode();
         if (code != 200) {
             c.disconnect();

@@ -15,10 +15,14 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 | ![YouTube's Continue Watching on the top shelf](docs/screenshots/app-shelf.jpg) | | |
 | **A folder** | **Hold OK: the menu** | **Recent apps (Home twice)** |
 | ![Folder](docs/screenshots/folder.jpg) | ![Hold menu](docs/screenshots/menu.jpg) | ![Recent apps](docs/screenshots/recents.jpg) |
-| **StandBy screensaver** | **Fonts** | |
-| ![StandBy](docs/screenshots/standby.jpg) | ![Fonts](docs/screenshots/fonts.jpg) | |
+| **StandBy screensaver** | **Fonts** | **More Settings** |
+| ![StandBy](docs/screenshots/standby.jpg) | ![Fonts](docs/screenshots/fonts.jpg) | ![More Settings](docs/screenshots/more-settings.jpg) |
+| **Appearance** | **StandBy: Digital** | **StandBy: World clock** |
+| ![Appearance](docs/screenshots/appearance.jpg) | ![Digital clock](docs/screenshots/standby-digital.jpg) | ![World clock](docs/screenshots/standby-world.jpg) |
+| **Wallpaper and clock** | **News on the top shelf** | **Dynamic Island** |
+| ![Wallpaper](docs/screenshots/wallpaper.jpg) | ![News](docs/screenshots/news.jpg) | ![Dynamic Island](docs/screenshots/island.jpg) |
 
-*Screenshots from a Mi TV 4i (Android 9) in Chennai.*
+*Screenshots from a Mi TV 4i and a TCL BeyondTV2 (both Android 9) in Chennai.*
 
 ---
 
@@ -76,17 +80,25 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
   **New Folder**, or move it to one you made. Folders sit first in All Apps, showing their first six apps; **OK**
   opens one in its own glass panel with its name above. Hold **OK** on a folder to rename or remove it (its apps go
   back to All Apps), or on an app inside one to move it out.
+- **Top shelf choices**: the picks, the focused app's own content, every app's Continue Watching, **news headlines**
+  (Google News: top stories, world, business, technology, sports, Hindi or Tamil) on a wallpaper, or a still
+  **wallpaper with the big clock** (Aurora, Sunset, Ocean, Graphite, or an emoji pattern).
+- **Dynamic Island**: a black pill at the top centre with your first four apps (More Settings → Appearance).
 - **Fonts**: SF Pro, SF Rounded, Inter, Google Sans (the Google I/O font), Outfit or the TV's own
   (Home Settings → Font; the list shows each name in its own font). See [Apple's SF fonts](#apples-sf-fonts).
 - **Settings** in the tvOS split view: a Liquid Glass window over today's photo, your profile at the top of the
   sidebar, each section with its coloured icon, and content rows on their own glass plates with the white focus.
 - **Today** page (date, Panchang, Thirukkural, cricket, news) over today's photo, with Liquid Glass cards.
 - **Dark Mode**: on, off, or automatically from sunset to sunrise at your location.
+- **More Settings**: every option page by page (see [Settings](#settings)), plus Private DNS, Backup & Restore,
+  TV Debloat and a storage cleaner. A short **first-run setup** (name, avatar, language, city, units, top shelf,
+  screensaver) greets a new install.
 
-**Screensaver**: Bing's photo of the day (or the picks' photos) with a slow Ken Burns zoom, a big Liquid Glass clock,
+**Screensaver**: Bing's photo of the day, NASA's or Wikipedia's picture of the day (or the picks' photos) with a slow Ken Burns zoom, a big Liquid Glass clock,
 the date, weather and quotes, and a Thirukkural couplet. Or **StandBy** (Home Settings → Screensaver style), like an
 iPhone on its side: an analog clock with a sweeping second hand and this month's calendar on black, turning a dim red
-from 10 pm to 6 am, and drifting a few pixels so nothing burns in.
+from 10 pm to 6 am, and drifting a few pixels so nothing burns in. Other faces: **Digital**, **World clock** (London,
+New York, Dubai, Tokyo), **Floating** (the time wanders slowly through the colours) and **Date and weather**.
 
 **Made for India, works anywhere**: Tamil, Hindi and 20+ other languages, Tamil titles first in the picks, Indian
 streaming apps on the dock (JioHotstar, Sun NXT, SonyLIV, Prime Video, Netflix, YouTube), rupee prices.
@@ -137,7 +149,7 @@ Set `ANDROID_HOME` if `build.sh` can't find the SDK.
 
 **3. Build**
 ```bash
-git clone https://github.com/NonStopProgrammer/X-OS-Launcher.git
+git clone https://github.com/NonStopProgrammer/X-OS-TV-Launcher.git
 cd X-OS-Launcher
 ./build.sh            # first run creates config.properties
 # edit config.properties: your city, latitude/longitude, TMDB key (see Settings)
@@ -194,17 +206,17 @@ Dark Mode, Glass Style and Profile.
 
 | Page | What's there |
 |---|---|
-| Appearance | Theme, Liquid or Frosted glass, font, text size, animation speed, folders in a window or full screen |
+| Appearance | Theme, Liquid or Frosted glass, font, text size, animation speed, folders in a window or full screen, Dynamic Island |
 | Status Bar & Weather | 12/24-hour clock, the date next to it, temperature unit, weather and markets widgets, city |
-| Top Shelf | Picks for you, the focused app's own content, all Continue Watching, or a wallpaper (Aurora, Sunset, Ocean, Graphite, Emoji) with the big clock; shelf apps |
-| StandBy & Screensaver | Style, StandBy clock (Analog and calendar, Digital, World clock, Floating, Date and weather), preview |
+| Top Shelf | Picks for you, the focused app's own content, all Continue Watching, news headlines (and their edition), or a wallpaper (Aurora, Sunset, Ocean, Graphite, Emoji) with the big clock; shelf apps |
+| StandBy & Screensaver | Style, StandBy clock (Analog and calendar, Digital, World clock, Floating, Date and weather), photos (Bing, NASA or Wikipedia picture of the day), preview |
 | Sound | X-OS clicks, the TV's own sounds, or off |
 | Network | Wi-Fi and Bluetooth (the TV's own pages), IP address, the `adb connect` line |
 | Private DNS | Automatic, AdGuard (blocks ads), Cloudflare or Google; Automatic puts Android's own back |
 | Backup & Restore | Settings, shelf, folders and remote buttons to `X-OS/x-os-backup.json` (kept after an uninstall) |
 | TV Debloat | The promo apps X-OS knows, each on or off (turned off, never uninstalled; Original turns them back on) |
 | Storage Cleaner | Free storage and memory, clear the apps' caches, close background apps |
-| About | Version, TV model, Android version, home screen, IP, storage, memory |
+| About | Version, TV model, Android version, home screen, IP, storage, memory; *Set up again* |
 
 ### Apple's SF fonts
 
@@ -345,6 +357,9 @@ X-OS talks only to:
 | `api.themoviedb.org`, `image.tmdb.org` | Picks and their images (only with your TMDB key) |
 | `api.watchmode.com` | Optional: a title's page in its app |
 | `www.bing.com` | The screensaver's photo of the day |
+| `api.nasa.gov`, `apod.nasa.gov` | Only if you pick NASA's picture of the day |
+| `api.wikimedia.org`, `upload.wikimedia.org` | Only if you pick Wikipedia's picture of the day |
+| `news.google.com` | Only with News on the top shelf: the edition's headlines |
 | `query1/query2.finance.yahoo.com` | Market quotes |
 | `site.api.espn.com` | Cricket scores on the Today page |
 | `www.youtube.com`, `i.ytimg.com` | Your YouTube channels' feeds and thumbnails |
@@ -368,10 +383,10 @@ No analytics, no ads, no account, nothing about what you watch leaves the TV.
 
 ## Roadmap
 
-- More StandBy clocks (Depth, Solar) and photo screensavers from other online sources (NASA, Wikimedia, The Met)
-- Settings search; VPN; more ADB tools
-- Your own picture as the top shelf wallpaper
-- Dynamic Island with favourite apps; news in the top shelf with a reader
+- More StandBy clocks (Depth, Solar) and The Met's open collection as screensaver photos
+- Settings search; more ADB tools (a VPN needs a VPN app and server: install one from the Play Store)
+- Your own picture as the top shelf wallpaper; a news reader for TVs without a browser
+- Filling the new strings in every language (`python3 tools/translate.py --fill`)
 - First-run setup wizard (profile, look, top shelf, weather, default launcher)
 - More interface sound packs; TV notifications
 - Storage cleaner for large, duplicate and installer files

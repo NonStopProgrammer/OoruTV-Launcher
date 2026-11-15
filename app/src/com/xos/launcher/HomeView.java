@@ -62,7 +62,7 @@ import java.util.function.Consumer;
  * redraws what changed.
  */
 final class HomeView extends ViewGroup implements Choreographer.FrameCallback, HomeData.Listener, Recs.Listener,
-        AppShelf.Listener {
+        AppShelf.Listener, News.Listener {
     // tvOS grid (Human Interface Guidelines): content inside the safe area, 80 px from the sides and 60 from top and
     // bottom; 40 px between items; 7 columns of 217 px (the apps). The shelf glass extends 36 px past the tiles (the
     // same padding on all four sides) and the tile corners are concentric with it (glass radius = radius + padding).
@@ -387,6 +387,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         data = HomeData.get(a);
         recs = Recs.get(a);
         appShelf = AppShelf.get(a);
+        news = News.get(a);
         youtube = YouTube.get(a);
         click = new Click(a);
         ui = a.getSharedPreferences("home-ui", Context.MODE_PRIVATE);
@@ -457,6 +458,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         recs.addListener(this);
         youtube.addListener(this);
         appShelf.addListener(this);
+        news.addListener(this);
         appShelf.stale();   // back from an app: its Continue Watching may have moved on
         data.refreshIfStale();
         recs.refreshIfStale();
@@ -491,6 +493,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         recs.removeListener(this);
         youtube.removeListener(this);
         appShelf.removeListener(this);
+        news.removeListener(this);
         handler.removeCallbacks(appShelfSwitch);
         if (tvInputs != null) tvInputs.unregisterCallback(inputCallback);
     }
@@ -527,6 +530,23 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** Opens a screen by name (HomeActivity's "show" extra): apps, control or weather. */
+    // Screenshots only (HomeActivity --es shelf … --ez island true): another top shelf or the island, not saved.
+    private String previewShelf;
+    private boolean previewIsland;
+
+    void preview(String shelfMode, boolean island) {
+        previewShelf = shelfMode;
+        previewIsland = island;
+        appsStale = true;
+        reload();
+        updatePicks();
+        invalidateAll();
+    }
+
+    private String shelfMode() {
+        return previewShelf != null ? previewShelf : Prefs.topShelf();
+    }
+
     void show(String what) {
         reset(false);
         switch (what) {
@@ -590,6 +610,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // MARK: - The focused app's own top shelf (AppShelf)
 
     private final AppShelf appShelf;
+    private final News news;
+
+    @Override public void onNews() {
+        if (!shelfMode().equals("news")) return;
+        wake();
+        updatePicks();
+    }
+
     /** The app whose cards the top shelf shows (null: the picks), and the one asked for after a short pause. */
     private String appShelfPkg, appShelfWanted;
     private final Runnable appShelfSwitch = this::switchAppShelf;
@@ -632,6 +660,23 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private Backdrop backdropOf(Recs.Pick p) {
         if (p == null) return null;
         return AppShelf.KIND.equals(p.kind) ? appShelf.backdrop(p) : recs.backdrop(p);
+    }
+
+    /** A headline: the article in the TV's browser, if it has one. */
+    private void openArticle(Recs.Pick p) {
+        if (p.link == null) return;
+        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(p.link))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            if (i.resolveActivity(getContext().getPackageManager()) == null) {
+                showToast(Ui.tr("No web browser on this TV to open the article."));
+                return;
+            }
+            click.open();
+            getContext().startActivity(i);
+        } catch (RuntimeException e) {
+            showToast(Ui.tr("No web browser on this TV to open the article."));
+        }
     }
 
     private void invalidateAll() {
@@ -951,7 +996,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             h.label = Ui.date(System.currentTimeMillis()).toUpperCase(Ui.locale());
             return h;
         }
-        h.label = AppShelf.KIND.equals(p.kind) && p.label != null ? p.label : Recs.periodLabel();
+        h.label = (AppShelf.KIND.equals(p.kind) || News.KIND.equals(p.kind)) && p.label != null ? p.label : Recs.periodLabel();
         h.progress = p.progress;
         if (tvos) {
             h.service = Recs.serviceName(p);
@@ -1230,7 +1275,28 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return list;
     }
 
+    /** Status items with the Dynamic Island's apps after the weather pill (Appearance › Dynamic Island). */
+    private List<HomeApps.Item> withIsland(List<HomeApps.Item> list) {
+        islandN = 0;
+        if (!tvos || !(Prefs.island() || previewIsland)) return list;
+        List<HomeApps.Item> out = new ArrayList<>(list);
+        int at = !out.isEmpty() && WEATHER_KEY.equals(out.get(0).key) ? 1 : 0;
+        for (HomeApps.Item it : shelf) {
+            if (islandN >= ISLAND_MAX) break;
+            if (it.kind != HomeApps.APP || it.pkg == null || it.tile == null) continue;
+            out.add(at + islandN, it);
+            islandN++;
+        }
+        return out;
+    }
+
+    private static final int ISLAND_MAX = 4;
+    private int islandN;
+    private final RectF islandRect = new RectF();
+    private final Path islandClip = new Path();
+
     private void setStatusItems(List<HomeApps.Item> list) {
+        list = withIsland(list);
         boolean same = list.size() == statusItems.size();
         for (int i = 0; same && i < list.size(); i++) same = list.get(i).key.equals(statusItems.get(i).key);
         String focusedKey = statusIndex < statusItems.size() ? statusItems.get(statusIndex).key : null;
@@ -2253,7 +2319,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             handler.post(() -> {
                 if (top != null) setLightButtons(top);
                 if (s != null) setShelf(s);
-                setStatusItems(st);
+                setStatusItems(st);   // after the shelf: the Dynamic Island takes its first apps
                 setDrawerItems(d);
                 if (o != null && !sheetOpen) setOthers(o);
                 else if (o != null) appsStale = true;   // All Apps is open: its list comes next time
@@ -2507,6 +2573,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             r = focusedCell;
         } else if (zone == Z_HERO) {
             Recs.Pick p = currentPick();
+            if (p != null && News.KIND.equals(p.kind)) {
+                openArticle(p);
+                return;
+            }
             if (p == null || p.pkg == null) return;
             it = HomeApps.app(p.pkg, Recs.serviceName(p), p.link);
             r = heroButton;
@@ -3545,12 +3615,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** The hero's picks: Explore's three and, with the YouTube tab on, YouTube's; the photo of the one showing. */
     private void updateTvPicks() {
-        String shelfMode = Prefs.topShelf();
-        wallpaperShelf = shelfMode.equals("wallpaper");
+        String shelfMode = shelfMode();
+        boolean newsShelf = shelfMode.equals("news");
+        wallpaperShelf = shelfMode.equals("wallpaper") || newsShelf;   // the headlines sit on the wallpaper
         String source = shelfMode.equals("all") ? AppShelf.ALL : shelfMode.equals("app") ? appShelfPkg : null;
         List<Recs.Pick> app = source == null ? null : appShelf.cards(source);
         List<Recs.Pick> list;
-        if (wallpaperShelf) {
+        if (newsShelf) {
+            list = new ArrayList<>(news.now());   // none yet: the big clock until they come
+        } else if (wallpaperShelf) {
             list = new ArrayList<>();   // no picks: the wallpaper with the big clock
         } else if (app != null && !app.isEmpty()) {
             list = new ArrayList<>(app);
@@ -3821,6 +3894,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             statusRects[0].set(MARGIN * k, top, MARGIN * k + pw, top + ch);
         }
         capsuleInfoW = 12 * k + 46 * k + 16 * k + capsuleText.measureText(clockText) + 20 * k;
+        int island = Math.min(islandN, n - first);
+        if (island > 0) {
+            float tw = 78 * k, th = 44 * k, tg = 12 * k, ip = 16 * k;
+            float iw = island * tw + (island - 1) * tg + 2 * ip;
+            islandRect.set(w / 2f - iw / 2, top, w / 2f + iw / 2, top + ch);
+            float x = islandRect.left + ip;
+            for (int i = first; i < first + island; i++) {
+                statusRects[i].set(x, cy - th / 2, x + tw, cy + th / 2);
+                x += tw + tg;
+            }
+            first += island;
+        } else {
+            islandRect.setEmpty();
+        }
         int buttons = n - first;
         float width = buttons * b + Math.max(0, buttons - 1) * gap;
         float right = CONTENT_R * k;
@@ -3877,6 +3964,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 tipPaint.setTextAlign(Paint.Align.CENTER);
             }
         }
+        first = drawIsland(c, first);
         float rad = capsuleRect.height() / 2;
         tmp.set(capsuleRect);
         tmp.offset(0, 10 * k);
@@ -3909,6 +3997,53 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 tipPaint.setAlpha(255);
             }
         }
+    }
+
+    /**
+     * The Dynamic Island: a black pill at the top center with your first shelf apps as small cards; the focused one
+     * grows with a white ring and its name below. Returns the index after its apps.
+     */
+    private int drawIsland(Canvas c, int first) {
+        int island = Math.min(islandN, statusItems.size() - first);
+        if (island <= 0 || islandRect.isEmpty()) return first;
+        float rad = islandRect.height() / 2;
+        tmp.set(islandRect);
+        tmp.offset(0, 10 * k);
+        shadow.setColor(0x66000000);
+        shadows.draw(c, tmp, rad, SHADOW_BLUR * k, shadow);
+        fill.setShader(null);
+        fill.setColor(0xF2000000);
+        c.drawRoundRect(islandRect, rad, rad, fill);
+        controlRim.setColor(0x26FFFFFF);
+        c.drawRoundRect(islandRect, rad, rad, controlRim);
+        controlRim.setColor(0x38FFFFFF);
+        for (int i = first; i < first + island && i < statusRects.length; i++) {
+            HomeApps.Item it = statusItems.get(i);
+            RectF r = statusRects[i];
+            float f = Ui.clamp(statusFocus[i].value), s = 1 + 0.22f * f, rr = 10 * k * s;
+            cell.set(r.centerX() - r.width() * s / 2, r.centerY() - r.height() * s / 2,
+                    r.centerX() + r.width() * s / 2, r.centerY() + r.height() * s / 2);
+            if (it.tile != null && !it.tile.isRecycled()) {
+                c.save();
+                islandClip.reset();
+                islandClip.addRoundRect(cell, rr, rr, Path.Direction.CW);
+                c.clipPath(islandClip);
+                imagePaint.setAlpha(255);
+                c.drawBitmap(it.tile, null, cell, imagePaint);
+                c.restore();
+            }
+            if (f > 0.01f) {
+                controlRim.setColor(Ui.alpha(0xFFFFFFFF, f));
+                c.drawRoundRect(cell, rr, rr, controlRim);
+                controlRim.setColor(0x38FFFFFF);
+                if (it.label != null) {
+                    tipPaint.setAlpha(Math.round(255 * f));
+                    c.drawText(it.label, r.centerX(), islandRect.bottom + 44 * k, tipPaint);
+                    tipPaint.setAlpha(255);
+                }
+            }
+        }
+        return first + island;
     }
 
     /** Your avatar: the emoji on a soft glass disc; `focus` adds a white ring and a lighter disc. */

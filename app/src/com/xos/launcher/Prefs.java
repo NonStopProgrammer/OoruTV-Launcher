@@ -116,12 +116,12 @@ final class Prefs {
 
     /**
      * The top shelf: "picks" (the default: sharp movie and show pictures), "app" (the focused app's own content: its
-     * Continue Watching and rows, else the picks), "all" (Continue Watching from every app) or "wallpaper" (a still
-     * wallpaper with the big clock).
+     * Continue Watching and rows, else the picks), "all" (Continue Watching from every app), "news" (headlines on the
+     * wallpaper) or "wallpaper" (a still wallpaper with the big clock).
      */
     static String topShelf() {
         String v = sp().getString("top_shelf", "picks");
-        return v.equals("app") || v.equals("all") || v.equals("wallpaper") ? v : "picks";
+        return v.equals("app") || v.equals("all") || v.equals("news") || v.equals("wallpaper") ? v : "picks";
     }
 
     static void setTopShelf(String v) { put("top_shelf", v); }
@@ -242,6 +242,24 @@ final class Prefs {
     static String wallpaperEmoji() { return sp().getString("wallpaper_emoji", "🐼"); }
 
     static void setWallpaperEmoji(String v) { put("wallpaper_emoji", v); }
+
+    /** The Dynamic Island: a black pill at the top with your first four shelf apps (Appearance › Dynamic Island). */
+    static boolean island() { return sp().getBoolean("island", false); }
+
+    static void setIsland(boolean on) { put("island", on); }
+
+    /** The screensaver's photos: "bing" (photo of the day), "nasa" (NASA's picture of the day) or "wikimedia". */
+    static String photoSource() {
+        String v = app == null ? "bing" : sp().getString("photo_source", "bing");
+        return v.equals("nasa") || v.equals("wikimedia") ? v : "bing";
+    }
+
+    static void setPhotoSource(String v) { put("photo_source", v); }
+
+    /** The news edition on the top shelf (News.EDITIONS). */
+    static String news() { return sp().getString("news", "top"); }
+
+    static void setNews(String v) { put("news", v); }
 
     // MARK: - Backup and restore (Settings › More Settings › Backup & Restore)
 

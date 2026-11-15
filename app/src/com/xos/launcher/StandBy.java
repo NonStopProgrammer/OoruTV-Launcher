@@ -29,6 +29,7 @@ final class StandBy {
     private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint numerals, month, weekday, day, today, digits, small, bigDay, label;
     private String style = "analog";
+    String forceFace;   // the settings' preview of one face (from ADB: --es face digital)
     private long styleAt;
     private int shownMinute = -1;
     private String timeText = "", dateText = "", weekdayText = "", tempText = "", rangeText = "", placeText = "", icon;
@@ -121,7 +122,7 @@ final class StandBy {
         boolean night = hour >= 22 || hour < 6;
         if (cal.get(Calendar.DAY_OF_YEAR) != shownDay) makeMonth(now);
         if (now - styleAt > 3000 || now < styleAt) {
-            style = Prefs.standbyClock();
+            style = forceFace != null ? forceFace : Prefs.standbyClock();
             styleAt = now;
         }
         int minute = (int) (now / 60_000);

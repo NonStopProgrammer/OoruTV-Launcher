@@ -126,6 +126,11 @@ final class DreamView extends View implements Choreographer.FrameCallback, HomeD
     private final StandBy standBy = new StandBy();
     private boolean standByMode;    // Screensaver style: StandBy (the clock and calendar widgets, no photos)
     String forceStyle;              // the settings' preview of one style (from ADB: --es saver standby)
+
+    /** The settings' preview of one StandBy face (from ADB: --es face digital|world|float|date). */
+    void forceFace(String face) {
+        standBy.forceFace = face;
+    }
     private boolean running, dirty = true, chromeDirty = true;
     private boolean fallback;       // the aurora with the clock (no photos)
     private boolean decoding;

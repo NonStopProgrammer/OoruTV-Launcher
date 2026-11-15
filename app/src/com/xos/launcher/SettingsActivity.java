@@ -47,6 +47,7 @@ import java.util.Set;
 public class SettingsActivity extends Activity {
     private SettingsView view;
     private DreamView preview;   // "Screensaver": the screensaver right here, without changing the system setting
+    private boolean firstRunShown;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -67,12 +68,17 @@ public class SettingsActivity extends Activity {
         if (open != null) {
             getIntent().removeExtra("open");
             view.openScreen(open);
+        } else if (!firstRunShown && !Prefs.setupDone()) {
+            // First run: a few choices before switching (Back skips; About › Set up again brings them back).
+            firstRunShown = true;
+            view.openScreen("setup");
         }
         if (preview == null && getIntent().getBooleanExtra("screensaver", false)) {
             getIntent().removeExtra("screensaver");
             view.pause();
             preview = new DreamView(this);
             preview.forceStyle = getIntent().getStringExtra("saver");
+            preview.forceFace(getIntent().getStringExtra("face"));
             setContentView(preview);
             preview.start();
         }
@@ -383,6 +389,12 @@ public class SettingsActivity extends Activity {
                 int p = 0;
                 try { p = Integer.parseInt(what.substring(4)); } catch (NumberFormatException ignored) {}
                 openPage(Math.max(P_HUB, Math.min(P_ABOUT, p)));
+                invalidate();
+                return;
+            }
+            if (what.equals("setup")) {
+                screen = OPTIONS;
+                openPage(P_SETUP);
                 invalidate();
                 return;
             }
@@ -834,6 +846,8 @@ public class SettingsActivity extends Activity {
                         if (backDown && !e.isCanceled()) {
                             if (screen == PICKER && (pickFor == PICK_CITY || pickFor == PICK_LANGUAGE || pickFor == PICK_FONT)) {
                                 backFromPicker();
+                            } else if (screen == OPTIONS && page == P_SETUP) {
+                                finishSetup();
                             } else if (screen == OPTIONS && page != P_HUB) {
                                 focus = page - 1;   // the hub lists the pages in order
                                 pickScroll = 0;
@@ -871,11 +885,12 @@ public class SettingsActivity extends Activity {
          * one row per index (12 rows: what the screen holds).
          */
         private static final int FONT_ROW = 3, SHELF_ROW = 4, CITY_ROW = 7, SAVER_ROW = 9, COIN_ROWS = 10;
-        private static final String[] SHELVES = {"picks", "app", "all", "wallpaper"};
+        private static final String[] SHELVES = {"picks", "app", "all", "news", "wallpaper"};
 
         private static String shelfName(String v) {
             return v.equals("picks") ? Ui.tr("Picks for you") : v.equals("all") ? Ui.tr("All Continue Watching")
-                    : v.equals("wallpaper") ? Ui.tr("Wallpaper and clock") : Ui.tr("Focused app");
+                    : v.equals("wallpaper") ? Ui.tr("Wallpaper and clock") : v.equals("news") ? Ui.tr("News headlines")
+                    : Ui.tr("Focused app");
         }
         private static final String[] SAVERS = {"scenery", "picks", "both", "standby"};
 
@@ -1076,7 +1091,8 @@ public class SettingsActivity extends Activity {
 
         private static final int OPT_VISIBLE = 11;
         private static final int P_HUB = 0, P_LOOK = 1, P_STATUS = 2, P_SHELF = 3, P_SAVER = 4, P_SOUND = 5, P_NETWORK = 6,
-                P_DNS = 7, P_BACKUP = 8, P_DEBLOAT = 9, P_STORAGE = 10, P_ABOUT = 11;
+                P_DNS = 7, P_BACKUP = 8, P_DEBLOAT = 9, P_STORAGE = 10, P_ABOUT = 11, P_SETUP = 12;
+        private static final String[] PHOTO_SOURCES = {"bing", "nasa", "wikimedia"};
         private static final String[] GLASSES = {"liquid", "frosted"}, CLOCKS = {"auto", "12", "24"},
                 ANIMATIONS = {"normal", "fast", "slow", "reduced"}, FOLDER_STYLES = {"window", "full"},
                 SOUNDS = {"xos", "tv", "off"}, STANDBY_CLOCKS = {"analog", "digital", "world", "float", "date"};
@@ -1172,6 +1188,7 @@ public class SettingsActivity extends Activity {
                 case P_DEBLOAT: return Ui.tr("TV Debloat");
                 case P_STORAGE: return Ui.tr("Storage Cleaner");
                 case P_ABOUT: return Ui.tr("About");
+                case P_SETUP: return Ui.tr("Welcome to X-OS");
                 default: return Ui.tr("More Settings");
             }
         }
@@ -1355,6 +1372,7 @@ public class SettingsActivity extends Activity {
                     }));
                     l.add(cycle(Ui.tr("Folders open"), Prefs.folderStyle().equals("full") ? Ui.tr("Full screen") : Ui.tr("In a window"),
                             d -> Prefs.setFolderStyle(nextOf(FOLDER_STYLES, Prefs.folderStyle(), d))));
+                    l.add(cycle(Ui.tr("Dynamic Island"), onOff(Prefs.island()), d -> Prefs.setIsland(!Prefs.island())));
                     break;
                 }
                 case P_STATUS: {
@@ -1375,7 +1393,10 @@ public class SettingsActivity extends Activity {
                 }
                 case P_SHELF: {
                     l.add(cycle(Ui.tr("Shows"), shelfName(Prefs.topShelf()), d -> Prefs.setTopShelf(nextOf(SHELVES, Prefs.topShelf(), d))));
-                    boolean wall = Prefs.topShelf().equals("wallpaper");
+                    Opt edition = cycle(Ui.tr("News"), News.editionName(Prefs.news()), d -> Prefs.setNews(nextOf(News.EDITIONS, Prefs.news(), d)));
+                    edition.dim = !Prefs.topShelf().equals("news");
+                    l.add(edition);
+                    boolean wall = Prefs.topShelf().equals("wallpaper") || Prefs.topShelf().equals("news");
                     Opt paper = cycle(Ui.tr("Wallpaper"), wallpaperName(Prefs.wallpaper()),
                             d -> Prefs.setWallpaper(nextOf(Prefs.WALLPAPERS, Prefs.wallpaper(), d)));
                     paper.dim = !wall;
@@ -1400,7 +1421,10 @@ public class SettingsActivity extends Activity {
                         pause();
                         activity.showPreview();
                     }));
-                    l.add(info(Ui.tr("Photos"), Ui.tr("Bing's photo of the day")));
+                    Opt photos = cycle(Ui.tr("Photos"), photoName(Prefs.photoSource()),
+                            d -> Prefs.setPhotoSource(nextOf(PHOTO_SOURCES, Prefs.photoSource(), d)));
+                    photos.dim = Prefs.screensaver().equals("standby") || Prefs.screensaver().equals("picks");
+                    l.add(photos);
                     break;
                 }
                 case P_SOUND:
@@ -1463,12 +1487,72 @@ public class SettingsActivity extends Activity {
                     l.add(info(Ui.tr("IP address"), ip));
                     l.add(info(Ui.tr("Storage"), storageText));
                     l.add(info(Ui.tr("Memory"), memoryText));
+                    l.add(action(Ui.tr("Set up again"), "", () -> openPage(P_SETUP)));
+                    break;
+                }
+                case P_SETUP: {
+                    String name = Prefs.profileName();
+                    Opt you = action(Ui.tr("Your name"), name.isEmpty() ? Ui.tr("Add your name") : name, this::askName);
+                    you.more = true;
+                    l.add(you);
+                    l.add(cycle(Ui.tr("Avatar"), Prefs.avatar(), d -> Prefs.setAvatar(nextOf(Prefs.AVATARS, Prefs.avatar(), d))));
+                    String lang = Prefs.language();
+                    l.add(link(Ui.tr("Language"), lang.equals("auto") ? Ui.tr("Automatic") : Ui.languageName(lang),
+                            () -> openPicker(PICK_LANGUAGE)));
+                    Opt city = action(Ui.tr("City"), !cityStatus.isEmpty() ? cityStatus : Prefs.city().isEmpty() ? "—" : Prefs.city(),
+                            this::askCity);
+                    city.more = true;
+                    l.add(city);
+                    String unit = Prefs.temperature();
+                    l.add(cycle(Ui.tr("Temperature"), unit.equals("C") ? "°C" : unit.equals("F") ? "°F" : Ui.tr("unit|Automatic"),
+                            d -> Prefs.setTemperature(nextOf(UNITS, Prefs.temperature(), d))));
+                    l.add(cycle(Ui.tr("Clock"), Prefs.clockHours().equals("12") ? Ui.tr("12-hour") : Prefs.clockHours().equals("24")
+                            ? Ui.tr("24-hour") : Ui.tr("Automatic"), d -> Prefs.setClockHours(nextOf(CLOCKS, Prefs.clockHours(), d))));
+                    l.add(cycle(Ui.tr("Top Shelf"), shelfName(Prefs.topShelf()), d -> Prefs.setTopShelf(nextOf(SHELVES, Prefs.topShelf(), d))));
+                    l.add(cycle(Ui.tr("Screensaver"), saverName(Prefs.screensaver()), d -> Prefs.setScreensaver(nextOf(SAVERS, Prefs.screensaver(), d))));
+                    l.add(action(Ui.tr("Done"), Ui.tr("then Home Screen › X-OS"), this::finishSetup));
                     break;
                 }
                 default:
                     break;
             }
             return l;
+        }
+
+        private static String photoName(String v) {
+            return v.equals("nasa") ? Ui.tr("NASA picture of the day") : v.equals("wikimedia") ? Ui.tr("Wikipedia picture of the day")
+                    : Ui.tr("Bing photo of the day");
+        }
+
+        /** The first-run pages are done (or skipped with Back): to the Home Screen row, where X-OS is switched on. */
+        private void finishSetup() {
+            Prefs.setSetupDone();
+            screen = MAIN;
+            focus = 0;
+            pickScroll = 0;
+            page = P_HUB;
+            changed();
+        }
+
+        private void askName() {
+            EditText field = new EditText(activity);
+            field.setSingleLine(true);
+            field.setText(Prefs.profileName());
+            field.setHint(Ui.tr("Your name"));
+            field.setImeOptions(EditorInfo.IME_ACTION_DONE);
+            AlertDialog dialog = new AlertDialog.Builder(activity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle(Ui.tr("Your name"))
+                    .setView(field)
+                    .setPositiveButton(Ui.tr("OK"), (d, which) -> { Prefs.setProfileName(field.getText().toString()); invalidate(); })
+                    .setNegativeButton(Ui.tr("Cancel"), null)
+                    .create();
+            field.setOnEditorActionListener((v, action, event) -> {
+                dialog.dismiss();
+                Prefs.setProfileName(field.getText().toString());
+                invalidate();
+                return true;
+            });
+            dialog.show();
         }
 
         /** The line under a page: what it does, and the safe way back where it matters. */
@@ -1480,6 +1564,8 @@ public class SettingsActivity extends Activity {
                 case P_DEBLOAT: return Ui.tr("OK turns one off or on. Turned off, never uninstalled; Original turns them all back on.");
                 case P_STORAGE: return Ui.tr("Clearing caches never removes your apps, sign-ins or settings.");
                 case P_NETWORK: return Ui.tr("Wi-Fi and Bluetooth open the TV's own settings.");
+                case P_ABOUT: return Ui.tr("Your TV and X-OS at a glance.");
+                case P_SETUP: return Ui.tr("A few choices to start; everything is in More Settings later. Back skips.");
                 default: return Ui.tr("OK or the arrows change the value.");
             }
         }

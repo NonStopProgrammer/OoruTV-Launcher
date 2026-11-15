@@ -58,9 +58,15 @@ public class HomeActivity extends Activity {
     /**
      * For checking the screens from a computer: adb shell am start -n com.xos.launcher/.HomeActivity --es show apps
      * (apps = All Apps, control = Control Center, weather, today = the Today page, recents, folder = the first folder,
-     * menu = the hold menu on the first app).
+     * menu = the hold menu on the first app). For screenshots of the other looks, without saving anything:
+     * --es shelf news|wallpaper|picks and --ez island true.
      */
     private void showRequested(Intent intent) {
+        if (intent != null && home != null && (intent.hasExtra("shelf") || intent.hasExtra("island"))) {
+            home.preview(intent.getStringExtra("shelf"), intent.getBooleanExtra("island", false));
+            intent.removeExtra("shelf");
+            intent.removeExtra("island");
+        }
         String what = intent == null ? null : intent.getStringExtra("show");
         if (what == null || home == null) return;
         if (what.equals("today")) {
