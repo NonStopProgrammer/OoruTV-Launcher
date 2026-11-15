@@ -19,8 +19,8 @@ you didn't ask for. Plain Java, no libraries, about 1.5 MB, built for 60 fps on 
 | ![StandBy](docs/screenshots/standby.jpg) | ![Fonts](docs/screenshots/fonts.jpg) | ![More Settings](docs/screenshots/more-settings.jpg) |
 | **Appearance** | **StandBy: Digital** | **StandBy: World clock** |
 | ![Appearance](docs/screenshots/appearance.jpg) | ![Digital clock](docs/screenshots/standby-digital.jpg) | ![World clock](docs/screenshots/standby-world.jpg) |
-| **Wallpaper and clock** | **News on the top shelf** | **Dynamic Island** |
-| ![Wallpaper](docs/screenshots/wallpaper.jpg) | ![News](docs/screenshots/news.jpg) | ![Dynamic Island](docs/screenshots/island.jpg) |
+| **Wallpaper and clock** | **StandBy: Date and weather** | **Dynamic Island** |
+| ![Wallpaper](docs/screenshots/wallpaper.jpg) | ![Date and weather](docs/screenshots/standby-date.jpg) | ![Dynamic Island](docs/screenshots/island.jpg) |
 
 *Screenshots from a Mi TV 4i and a TCL BeyondTV2 (both Android 9) in Chennai.*
 
